@@ -1,8 +1,55 @@
 use lexer::Token;
 
-use crate::token_kinds::{BinOp::*, TokenKind::*};
+use crate::token_kinds::{BinOp::*, TokenKind::*, Literal::*};
 use crate::token_kinds::TokenKind;
+use std::fmt;
+use std::process::exit;
 use std::{process, str::from_utf8};
+
+pub enum AstTree {
+  AstFuncDec(FunctionDec),
+  AstBin(BinExpresion),
+  AstFuncCall(FuncCall),
+  AstVarCall(VarCall),
+  Type(Types)
+}
+
+#[derive(Debug)]
+pub enum Types {
+  Int64,
+  Int32,
+  F32,
+  Fail
+}
+
+impl fmt::Display for Types {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{:?}", self)
+    // or, alternatively:
+    // fmt::Debug::fmt(self, f)
+}
+}
+
+pub struct VarCall {
+  name: &'static [u8]
+}
+
+pub struct FuncCall {
+  name: &'static [u8],
+  args: Vec<AstTree>
+}
+
+pub struct BinExpresion {
+  lhs: &'static AstTree,
+  rhs: &'static AstTree
+}
+
+pub struct FunctionDec {
+  pub name: &'static [u8],
+  args: Vec<Param>,
+  body: Vec<AstTree>,
+  pub returns: Types
+}
 
 pub struct Node {
   params: Vec<Node>
@@ -34,7 +81,7 @@ pub struct Param {
 }
 
 fn is_type(kind: TokenKind) -> bool {
-  I32 == kind || I64 == kind || F32 == kind
+  I32Type == kind || I64Type == kind || F32Type == kind
 }
 
 impl Parser {
@@ -63,7 +110,7 @@ impl Parser {
   }
 
   fn parse_function_params(&mut self) -> Vec<Param> {
-    let mut params: Vec<Param> = vec![];
+    let mut params = vec![];
     if self.first().kind != OpenParen {
       panic!("Syntax Error: Didn't find '(' after function name");
     }
@@ -73,11 +120,11 @@ impl Parser {
         self.bump()
       }
       match (self.first().keyword(), self.second().kind) {
-        (I32 | I64 | F32, Ident) => {
+        (I32Type | I64Type | F32Type, Ident) => {
           params.push(Param {name: self.second().val, t: self.first().keyword()});
           self.bump()
         },
-        (Comma, I32 | I64 | F32) => {
+        (Comma, I32Type | I64Type | F32Type) => {
           self.bump();
           self.bump()
         },
@@ -91,20 +138,32 @@ impl Parser {
     params
   }
 
-  fn parse_function(&mut self) -> Result<usize /* when error */, usize /* when Ok */ > {
+  fn get_type_from_tokenkind(kind: TokenKind) -> Types {
+    match kind {
+      I64Type => Types::Int64,
+      I32Type => Types::Int32,
+      F32Type => Types::F32,
+      _ => {
+        eprintln!("didn't find type from {}", kind);
+        Types::Fail
+      }
+    }
+  }
+
+  fn parse_function(&mut self) -> AstTree {
     let t = self.first().keyword();
     if !is_type(t) {
       eprintln!("'{}' is not a type.", from_utf8(self.first().val).unwrap());
-      return Err(self.index)
+      process::exit(1)
     }
     let name = self.second().val;
     if self.second().kind != Ident {
       eprintln!("{} is {}, not an identifier.", from_utf8(name).unwrap(), self.second().kind);
-      return Err(self.index + 1)
+      process::exit(1)
     }
     if self.second().keyword() != Fail {
       eprintln!("You should not use the language keywords for function names");
-      return Err(self.index + 1)
+      process::exit(1)
     }
     self.bump();
     self.bump();
@@ -120,29 +179,27 @@ impl Parser {
     }
 
     let body = parse(self.input[self.index+1..self.get_function_end()].into());
-    Ok(0)
+    AstTree::AstFuncDec(FunctionDec {name: name, args: parameters, body: body, returns: Parser::get_type_from_tokenkind(t)})
   }
 
-  fn variable_recall(&mut self) {
-    println!("{}", self.scope.is_in_scope(self.first().val));
-  }
-
-  fn function_variable_recall(&mut self) {
-    if !self.scope.is_in_scope(self.first().val) {
+  fn function_variable_recall(&mut self) -> AstTree {
+    let name = self.first().val;
+    if !self.scope.is_in_scope(name) {
       eprintln!("{} is not defined.", from_utf8(self.first().val).unwrap());
       process::exit(1)
     }
     if self.second().kind != OpenParen {
-      return self.variable_recall()
+      return AstTree::AstVarCall(VarCall{name: name})
     }
     self.bump(); // eat '('
+    let mut params = vec![];
     while self.first().kind != CloseParen {
-      self.parse_expression()
+      params.push(self.parse_expression())
     }
-    // return function recall
+    AstTree::AstFuncCall(FuncCall{ name: &name, args: params })
   }
 
-  fn parse_rhs(&mut self) {
+  fn parse_rhs(&mut self) -> AstTree {
     let op = self.first();
     if op.kind == Bin(Add) || op.kind ==  Bin(Sub) ||
        op.kind ==  Bin(Mul) || op.kind ==  Bin(Div) ||
@@ -151,18 +208,18 @@ impl Parser {
       process::exit(1)
     }
     self.bump();
-    let rhs = self.parse_expression();
+    self.parse_expression()
   }
 
-  fn binary(&mut self) {
+  fn binary(&mut self) -> AstTree {
     let lhs = self.parse_expression();
     self.parse_rhs()
   }
 
-  fn parse_expression(&mut self) {
+  pub fn parse_expression(&mut self) -> AstTree {
     match self.first().kind {
       Ident => self.function_variable_recall(),
-      _ if is_type(self.first().kind) => self.binary(),
+      Lit(IntLiteral) | Lit(FloatLiteral) => self.binary(),
       _ => {
         eprintln!("didn't find expression.");
         process::exit(1)
@@ -170,13 +227,15 @@ impl Parser {
     }
   }
 
-  pub fn function_variable_dec(&mut self) {
+  pub fn function_variable_dec(&mut self) -> AstTree {
     if self.input[self.index + 2].kind == OpenParen {
-      self.parse_function().unwrap();
+      self.parse_function()
     } else if self.input[self.index + 2].kind == Eq {
       // variable dec
+      todo!()
     } else {
       println!("syntax error, unexpected {} was encountered.", self.input[self.index + 1].kind);
+      exit(1)
     }
   }
 
@@ -184,7 +243,7 @@ impl Parser {
     self.index >= self.input.len()
   }
 
-  pub fn advance(&mut self) {
+  pub fn advance(&mut self) -> AstTree {
     match self.first().kind {
       Ident => self.function_variable_recall(),
       NewLine => {
@@ -200,11 +259,11 @@ impl Parser {
   }
 }
 
-pub fn parse(input: Vec<Token>) -> Vec<Node> {
-  let mut nodes: Vec<Node> = vec![];
+pub fn parse(input: Vec<Token>) -> Vec<AstTree> {
+  let mut nodes = vec![];
   let mut parser = Parser::new(input);
   while !parser.is_eoi() {
-    parser.advance();
+    nodes.push(parser.advance());
   }
   nodes
 }

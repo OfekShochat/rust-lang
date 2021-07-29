@@ -95,9 +95,9 @@ impl Token {
       "switch" => Switch,
       "const" => Const,
       "return" => Return,
-      "i32" => I32,
-      "i64" => I64,
-      "f32" => F32,
+      "i32" => I32Type,
+      "i64" => I64Type,
+      "f32" => F32Type,
       _ => Fail
     }
   }

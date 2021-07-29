@@ -89,9 +89,9 @@ pub enum TokenKind {
   Ident,
 
   /* - Types - */
-  I32,
-  I64,
-  F32,
+  I32Type,
+  I64Type,
+  F32Type,
 
   Fail
 }
