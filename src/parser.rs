@@ -132,12 +132,12 @@ fn litkind_to_type(kind: TokenKind) -> Types {
 
 fn get_precedence(op: TokenKind) -> i8 {
   match op {
-    Bin(Gt) => 1,
-    Bin(Lt) => 1,
-    Bin(Add) => 2,
-    Bin(Sub) => 2,
-    Bin(Mul) => 3,
-    Bin(Div) => 3,
+    Bin(Gt) => 10,
+    Bin(Lt) => 10,
+    Bin(Add) => 20,
+    Bin(Sub) => 20,
+    Bin(Mul) => 30,
+    Bin(Div) => 30,
     _ => -1
   }
 }
@@ -260,12 +260,14 @@ impl Parser {
         self.bump();
         return lhs
       }
+
       let op = self.first().kind;
       let prec = get_precedence(op);
       if prec < this_prec {
         return lhs
       }
       self.bump(); // eat op
+
       let mut rhs = self.parse_expression(true);
       let next_prec = get_precedence(self.first().kind);
       if prec < next_prec {
@@ -277,7 +279,6 @@ impl Parser {
 
   fn binary(&mut self) -> AstTree {
     let lhs = self.parse_expression(true);
-    self.bump(); // eat lhs
     self.parse_rhs(lhs, 0)
   }
 
@@ -286,7 +287,9 @@ impl Parser {
       Ident => self.function_variable_recall(),
       Lit(IntLiteral) | Lit(FloatLiteral) => {
         if in_binary {
-          AstTree::Num(Number{typ: litkind_to_type(self.first().kind), val: self.first().val})
+          let n = AstTree::Num(Number{typ: litkind_to_type(self.first().kind), val: self.first().val});
+          self.bump();
+          n
         } else {
           let b = self.binary();
           self.bump();
