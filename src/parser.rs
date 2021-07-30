@@ -63,23 +63,43 @@ pub struct FunctionDec {
 }
 
 struct Scope {
-  subscope: Option<*mut Scope>,
+  subscope: Vec<Scope>,
   names: Vec<&'static [u8]>
 }
 
 impl Scope {
   pub fn is_in_scope(&self, name: &'static [u8]) -> bool {
-    if !self.subscope.is_none() && unsafe {self.subscope.unwrap().as_mut().unwrap().is_in_scope(name)} {
+    if !self.subscope_empty() && self.subscope[0].is_in_scope(name) {
       return true
     }
     self.names.contains(&name)
   }
 
   pub fn new_scope(&mut self) {
-    if self.subscope.is_none() {
-      self.subscope = Some(Scope {subscope: None, names: vec![]}.borrow_mut());
+    if self.subscope_empty() {
+      self.subscope.push(Scope {subscope: vec![], names: vec![]})
     } else {
-      unsafe {self.subscope.unwrap().as_mut().unwrap().new_scope()};
+      self.subscope[0].new_scope()
+    }
+  }
+
+  pub fn subscope_empty(&self) -> bool {
+    self.subscope.len() == 0
+  }
+
+  pub fn add(&mut self, name: &'static [u8]) {
+    if self.subscope_empty() {
+      self.names.push(name)
+    } else {
+      self.subscope[0].add(name)
+    }
+  }
+
+  pub fn destruct(&mut self) {
+    if !self.subscope_empty() {
+      self.subscope.remove(0);
+    } else {
+      self.subscope[0].destruct()
     }
   }
 }
@@ -132,7 +152,7 @@ struct Parser {
 
 impl Parser {
   pub fn new(input_tokens: Vec<Token>) -> Parser {
-    Parser {input: input_tokens, scope: Scope {subscope: None, names: vec![]}, index: 0}
+    Parser {input: input_tokens, scope: Scope {subscope: vec![], names: vec![]}, index: 0}
   }
 
   fn first(&self) -> Token {
@@ -213,6 +233,7 @@ impl Parser {
     }
 
     let body = parse(self.input[self.index..self.get_function_end()].into());
+    self.scope.add(name);
     AstTree::AstFuncDec(FunctionDec {name: name, args: parameters, body: body, returns: tokentype_to_type(t)})
   }
 
@@ -314,10 +335,12 @@ impl Parser {
       nodes.push(self.advance());
     }
     self.bump(); // eat '}'
+    self.scope.destruct(); // destruct the scope
     nodes
   }
 
   pub fn advance(&mut self) -> AstTree {
+    println!("{}", self.first().kind);
     match self.first().kind {
       _ if is_type(self.first().keyword()) => self.function_variable_dec(),
       _ if self.first().keyword() != Fail => self.keyword_expr(),
