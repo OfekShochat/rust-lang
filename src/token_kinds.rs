@@ -16,6 +16,8 @@ pub enum BinOp {
   Mul, // '*'
   Div, // '/'
   Percent, // '%'
+  Gt, // '>' (Greater Than)
+  Lt, // '<' (Less Than)
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -23,8 +25,6 @@ pub enum TokenKind {
   /* - Expresion operators - */
   Eq, // '='
   DEq, // '=='
-  Gt, // '>' (Greater Than)
-  Lt, // '<' (Less Than)
   LEq, // '<='
   GEq, // '>='
   NotEq, // '!='
@@ -99,7 +99,5 @@ pub enum TokenKind {
 impl fmt::Display for TokenKind {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
       write!(f, "{:?}", self)
-      // or, alternatively:
-      // fmt::Debug::fmt(self, f)
   }
 }

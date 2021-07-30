@@ -1,7 +1,9 @@
 use lexer::Token;
 
-use crate::token_kinds::{BinOp::*, TokenKind::*, Literal::*};
+use crate::token_kinds::{*, BinOp::*, Literal::*, TokenKind::*};
 use crate::token_kinds::TokenKind;
+use std::borrow::BorrowMut;
+use std::char::ToLowercase;
 use std::fmt;
 use std::process::exit;
 use std::{process, str::from_utf8};
@@ -11,7 +13,9 @@ pub enum AstTree {
   AstBin(BinExpresion),
   AstFuncCall(FuncCall),
   AstVarCall(VarCall),
-  Type(Types)
+  Type(Types),
+  AstScope(CurleyScope),
+  Num(Number)
 }
 
 #[derive(Debug)]
@@ -25,9 +29,16 @@ pub enum Types {
 impl fmt::Display for Types {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     write!(f, "{:?}", self)
-    // or, alternatively:
-    // fmt::Debug::fmt(self, f)
+  }
 }
+
+pub struct Number {
+  typ: Types,
+  pub val: &'static [u8]
+}
+
+pub struct CurleyScope {
+  body: Vec<AstTree>
 }
 
 pub struct VarCall {
@@ -40,8 +51,8 @@ pub struct FuncCall {
 }
 
 pub struct BinExpresion {
-  lhs: &'static AstTree,
-  rhs: &'static AstTree
+  inst: TokenKind,
+  pub params: Vec<AstTree>
 }
 
 pub struct FunctionDec {
@@ -51,28 +62,26 @@ pub struct FunctionDec {
   pub returns: Types
 }
 
-pub struct Node {
-  params: Vec<Node>
-}
-
 struct Scope {
-  subscope: Option<&'static Scope>,
+  subscope: Option<*mut Scope>,
   names: Vec<&'static [u8]>
 }
 
 impl Scope {
   pub fn is_in_scope(&self, name: &'static [u8]) -> bool {
-    if !self.subscope.is_none() && self.subscope.unwrap().is_in_scope(name) {
+    if !self.subscope.is_none() && unsafe {self.subscope.unwrap().as_mut().unwrap().is_in_scope(name)} {
       return true
     }
     self.names.contains(&name)
   }
-}
 
-pub struct Parser {
-  input: Vec<Token>,
-  scope: Scope,
-  index: usize,
+  pub fn new_scope(&mut self) {
+    if self.subscope.is_none() {
+      self.subscope = Some(Scope {subscope: None, names: vec![]}.borrow_mut());
+    } else {
+      unsafe {self.subscope.unwrap().as_mut().unwrap().new_scope()};
+    }
+  }
 }
 
 pub struct Param {
@@ -82,6 +91,43 @@ pub struct Param {
 
 fn is_type(kind: TokenKind) -> bool {
   I32Type == kind || I64Type == kind || F32Type == kind
+}
+
+fn tokentype_to_type(kind: TokenKind) -> Types {
+  match kind {
+    I32Type => Types::Int32,
+    I64Type => Types::Int64,
+    F32Type => Types::F32,
+    _ => process::exit(11)
+  }
+}
+
+fn litkind_to_type(kind: TokenKind) -> Types {
+  match kind {
+    Lit(FloatLiteral) => Types::F32,
+    Lit(IntLiteral) => Types::Int32,
+    _ => {
+      process::exit(12)
+    }
+  }
+}
+
+fn get_precedence(op: TokenKind) -> i8 {
+  match op {
+    Bin(Gt) => 1,
+    Bin(Lt) => 1,
+    Bin(Add) => 2,
+    Bin(Sub) => 2,
+    Bin(Mul) => 3,
+    Bin(Div) => 3,
+    _ => -1
+  }
+}
+
+struct Parser {
+  input: Vec<Token>,
+  scope: Scope,
+  index: usize,
 }
 
 impl Parser {
@@ -106,7 +152,7 @@ impl Parser {
     while self.input[i + self.index].kind != CloseBrace {
       i += 1
     }
-    i + self.index
+    i + self.index + 1
   }
 
   fn parse_function_params(&mut self) -> Vec<Param> {
@@ -138,18 +184,6 @@ impl Parser {
     params
   }
 
-  fn get_type_from_tokenkind(kind: TokenKind) -> Types {
-    match kind {
-      I64Type => Types::Int64,
-      I32Type => Types::Int32,
-      F32Type => Types::F32,
-      _ => {
-        eprintln!("didn't find type from {}", kind);
-        Types::Fail
-      }
-    }
-  }
-
   fn parse_function(&mut self) -> AstTree {
     let t = self.first().keyword();
     if !is_type(t) {
@@ -178,48 +212,65 @@ impl Parser {
       }
     }
 
-    let body = parse(self.input[self.index+1..self.get_function_end()].into());
-    AstTree::AstFuncDec(FunctionDec {name: name, args: parameters, body: body, returns: Parser::get_type_from_tokenkind(t)})
+    let body = parse(self.input[self.index..self.get_function_end()].into());
+    AstTree::AstFuncDec(FunctionDec {name: name, args: parameters, body: body, returns: tokentype_to_type(t)})
   }
 
   fn function_variable_recall(&mut self) -> AstTree {
-    let name = self.first().val;
-    if !self.scope.is_in_scope(name) {
+    let recall_name = self.first().val;
+    if !self.scope.is_in_scope(recall_name) {
       eprintln!("{} is not defined.", from_utf8(self.first().val).unwrap());
       process::exit(1)
     }
     if self.second().kind != OpenParen {
-      return AstTree::AstVarCall(VarCall{name: name})
+      return AstTree::AstVarCall(VarCall{name: recall_name})
     }
     self.bump(); // eat '('
     let mut params = vec![];
     while self.first().kind != CloseParen {
-      params.push(self.parse_expression())
+      params.push(self.parse_expression(false));
     }
-    AstTree::AstFuncCall(FuncCall{ name: &name, args: params })
+    AstTree::AstFuncCall(FuncCall{ name: &recall_name, args: params })
   }
 
-  fn parse_rhs(&mut self) -> AstTree {
-    let op = self.first();
-    if op.kind == Bin(Add) || op.kind ==  Bin(Sub) ||
-       op.kind ==  Bin(Mul) || op.kind ==  Bin(Div) ||
-       op.kind ==  Bin(Percent) {
-      eprintln!("expected a binary operator");
-      process::exit(1)
+  fn parse_rhs(&mut self, mut lhs: AstTree, this_prec: i8) -> AstTree {
+    loop {
+      if self.is_eoi() || self.first().kind == NewLine || self.first().kind == Semi {
+        return lhs
+      }
+      let op = self.first().kind;
+      let prec = get_precedence(op);
+      if prec < this_prec {
+        return lhs
+      }
+      self.bump(); // eat op
+      let mut rhs = self.parse_expression(true);
+      let next_prec = get_precedence(self.first().kind);
+      if prec < next_prec {
+        rhs = self.parse_rhs(rhs, prec + 1)
+      }
+      lhs = AstTree::AstBin(BinExpresion {params: vec![lhs, rhs], inst: op})
     }
-    self.bump();
-    self.parse_expression()
   }
 
   fn binary(&mut self) -> AstTree {
-    let lhs = self.parse_expression();
-    self.parse_rhs()
+    let lhs = self.parse_expression(true);
+    self.bump(); // eat lhs
+    self.parse_rhs(lhs, 0)
   }
 
-  pub fn parse_expression(&mut self) -> AstTree {
+  fn parse_expression(&mut self, in_binary: bool) -> AstTree {
     match self.first().kind {
       Ident => self.function_variable_recall(),
-      Lit(IntLiteral) | Lit(FloatLiteral) => self.binary(),
+      Lit(IntLiteral) | Lit(FloatLiteral) => {
+        if in_binary {
+          AstTree::Num(Number{typ: litkind_to_type(self.first().kind), val: self.first().val})
+        } else {
+          let b = self.binary();
+          self.bump();
+          b
+        }
+      },
       _ => {
         eprintln!("didn't find expression.");
         process::exit(1)
@@ -227,15 +278,28 @@ impl Parser {
     }
   }
 
-  pub fn function_variable_dec(&mut self) -> AstTree {
+  fn function_variable_dec(&mut self) -> AstTree {
     if self.input[self.index + 2].kind == OpenParen {
       self.parse_function()
     } else if self.input[self.index + 2].kind == Eq {
       // variable dec
       todo!()
     } else {
-      println!("syntax error, unexpected {} was encountered.", self.input[self.index + 1].kind);
+      eprintln!("syntax error, unexpected {} was encountered.", self.input[self.index + 1].kind);
       exit(1)
+    }
+  }
+
+  fn keyword_expr(&mut self) -> AstTree {
+    match self.first().keyword() {
+      Return => {
+        self.bump();
+        self.parse_expression(false)
+      }
+      _ => {
+        eprintln!("this should never happen.");
+        process::exit(-1)
+      }
     }
   }
 
@@ -243,14 +307,29 @@ impl Parser {
     self.index >= self.input.len()
   }
 
+  pub fn parse_scope(&mut self) -> Vec<AstTree> {
+    let mut nodes = vec![];
+    self.bump(); // eat '{'
+    while self.first().kind != CloseBrace {
+      nodes.push(self.advance());
+    }
+    self.bump(); // eat '}'
+    nodes
+  }
+
   pub fn advance(&mut self) -> AstTree {
     match self.first().kind {
+      _ if is_type(self.first().keyword()) => self.function_variable_dec(),
+      _ if self.first().keyword() != Fail => self.keyword_expr(),
       Ident => self.function_variable_recall(),
       NewLine => {
         self.bump();
         self.advance()
       },
-      _ if is_type(self.first().kind) => self.function_variable_dec(),
+      OpenBrace => {
+        self.scope.new_scope();
+        AstTree::AstScope(CurleyScope{body: self.parse_scope()})
+      }
       _ => {
         eprintln!("unexpected token {}", self.first().kind);
         process::exit(1)

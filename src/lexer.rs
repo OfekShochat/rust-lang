@@ -20,14 +20,14 @@ impl Token {
     match self.kind {
       Eq => match tok.kind {
         Eq => DEq,
-        Gt => FatRArrow,
+        Bin(Gt) => FatRArrow,
         _ => Fail
       },
-      Lt => match tok.kind {
+      Bin(Lt) => match tok.kind {
         Eq => LEq,
         _ => Fail
       },
-      Gt => match tok.kind {
+      Bin(Gt) => match tok.kind {
         Eq => GEq,
         _ => Fail
       },
@@ -70,8 +70,8 @@ impl Token {
       AndAnd => (And, And),
       ColonColon => (Colon, Colon),
       OrOr => (Or, Or),
-      RArrow => (Bin(Sub), Gt),
-      FatRArrow => (Eq, Gt),
+      RArrow => (Bin(Sub), Bin(Gt)),
+      FatRArrow => (Eq, Bin(Gt)),
       AddEq => (Bin(Add), Eq),
       SubEq => (Bin(Sub), Eq),
       MulEq => (Bin(Mul), Eq),
@@ -246,8 +246,8 @@ impl Lexer {
         ':' => Colon,
         '=' => Eq,
         '!' => Not,
-        '<' => Lt,
-        '>' => Gt,
+        '<' => Bin(Lt),
+        '>' => Bin(Gt),
         '-' => Bin(Sub),
         '&' => And,
         '|' => Or,
