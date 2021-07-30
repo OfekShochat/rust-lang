@@ -13,7 +13,8 @@ pub enum AstTree {
   AstVarCall(VarCall),
   Type(Types),
   AstScope(CurleyScope),
-  Num(Number)
+  Num(Number),
+  AstVarDec(VarDec)
 }
 
 #[derive(Debug)]
@@ -28,6 +29,12 @@ impl fmt::Display for Types {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     write!(f, "{:?}", self)
   }
+}
+
+pub struct VarDec {
+  typ: Types,
+  name: &'static [u8],
+  val: Vec<AstTree>,
 }
 
 pub struct Number {
@@ -202,39 +209,6 @@ impl Parser {
     params
   }
 
-  fn parse_function(&mut self) -> AstTree {
-    let t = self.first().keyword();
-    if !is_type(t) {
-      eprintln!("'{}' is not a type.", from_utf8(self.first().val).unwrap());
-      exit(1)
-    }
-    let name = self.second().val;
-    if self.second().kind != Ident {
-      eprintln!("{} is {}, not an identifier.", from_utf8(name).unwrap(), self.second().kind);
-      exit(1)
-    }
-    if self.second().keyword() != Fail {
-      eprintln!("You should not use the language keywords for function names");
-      exit(1)
-    }
-    self.bump();
-    self.bump();
-    let parameters = self.parse_function_params();
-    self.bump();
-
-    #[cfg(debug_assertions)] {
-      println!("function type: {}", t);
-      println!("function name: {}", from_utf8(name).unwrap());
-      for p in 0..parameters.len() {
-        println!("param {}:\ntype: {}\nname: {}\n", p, parameters[p].t, from_utf8(parameters[p].name).unwrap());
-      }
-    }
-
-    let body = parse(self.input[self.index..self.get_function_end()].into());
-    self.scope.add(name);
-    AstTree::AstFuncDec(FunctionDec {name: name, args: parameters, body: body, returns: tokentype_to_type(t)})
-  }
-
   fn function_variable_recall(&mut self) -> AstTree {
     let recall_name = self.first().val;
     self.bump(); // eat identifier
@@ -303,14 +277,61 @@ impl Parser {
     }
   }
 
+  fn parse_function(&mut self) -> AstTree {
+    let t = self.first().keyword(); // already verified in `self.advance()`
+    let name = self.second().val;
+    if self.second().kind != Ident {
+      eprintln!("{} is {}, not an identifier.", from_utf8(name).unwrap(), self.second().kind);
+      exit(1)
+    }
+    if self.second().keyword() != Fail {
+      eprintln!("You should not use the language keywords for function names");
+      exit(1)
+    }
+    self.bump();
+    self.bump();
+    let parameters = self.parse_function_params();
+    self.bump();
+
+    #[cfg(debug_assertions)] {
+      println!("function type: {}", t);
+      println!("function name: {}", from_utf8(name).unwrap());
+      for p in 0..parameters.len() {
+        println!("param {}:\ntype: {}\nname: {}\n", p, parameters[p].t, from_utf8(parameters[p].name).unwrap());
+      }
+    }
+
+    let body = parse(self.input[self.index..self.get_function_end()].into());
+    self.scope.add(name);
+    AstTree::AstFuncDec(FunctionDec {name: name, args: parameters, body: body, returns: tokentype_to_type(t)})
+  }
+
+  fn parse_var(&mut self) -> AstTree {
+    let t = self.first().keyword();
+    self.bump(); // eat type
+
+    let name = self.first().val;
+
+    if self.first().kind != Ident {
+      eprintln!("{} is {}, not an identifier.", from_utf8(name).unwrap(), self.second().kind);
+      exit(1)
+    }
+    self.bump(); // eat name
+    self.bump(); // eat '='
+
+    let val = self.parse_expression(false);
+
+    AstTree::AstVarDec(VarDec {typ: tokentype_to_type(t), name: name, val: vec![val]})
+  }
+
   fn function_variable_dec(&mut self) -> AstTree {
     if self.input[self.index + 2].kind == OpenParen {
       self.parse_function()
     } else if self.input[self.index + 2].kind == Eq {
       // variable dec
-      todo!()
+      self.parse_var()
     } else {
-      eprintln!("syntax error, unexpected {} was encountered.", self.input[self.index + 1].kind);
+      eprintln!("Syntax Error: unexpected {} was encountered after identifier declaration (expected ';', '\\n', '=' or '(').", self.input[self.index + 2].kind);
       exit(1)
     }
   }

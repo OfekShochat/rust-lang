@@ -22,7 +22,7 @@ fn print_binop(e: BinExpresion, depth: i8) {
 
 fn main() {
   let now = Instant::now();
-  let d = lexer::lex("2+1/3\n");
+  let d = lexer::lex("i32 main = 3;\n");
   let p = parser::parse(d);
   let elapsed = now.elapsed();
   for i in p {
