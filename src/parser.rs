@@ -1,12 +1,10 @@
 use lexer::Token;
 
-use crate::token_kinds::{*, BinOp::*, Literal::*, TokenKind::*};
+use crate::token_kinds::{BinOp::*, Literal::*, TokenKind::*};
 use crate::token_kinds::TokenKind;
-use std::borrow::BorrowMut;
-use std::char::ToLowercase;
 use std::fmt;
 use std::process::exit;
-use std::{process, str::from_utf8};
+use std::str::from_utf8;
 
 pub enum AstTree {
   AstFuncDec(FunctionDec),
@@ -42,16 +40,16 @@ pub struct CurleyScope {
 }
 
 pub struct VarCall {
-  name: &'static [u8]
+  pub name: &'static [u8]
 }
 
 pub struct FuncCall {
-  name: &'static [u8],
+  pub name: &'static [u8],
   args: Vec<AstTree>
 }
 
 pub struct BinExpresion {
-  inst: TokenKind,
+  pub inst: TokenKind,
   pub params: Vec<AstTree>
 }
 
@@ -118,7 +116,7 @@ fn tokentype_to_type(kind: TokenKind) -> Types {
     I32Type => Types::Int32,
     I64Type => Types::Int64,
     F32Type => Types::F32,
-    _ => process::exit(11)
+    _ => exit(11)
   }
 }
 
@@ -127,7 +125,7 @@ fn litkind_to_type(kind: TokenKind) -> Types {
     Lit(FloatLiteral) => Types::F32,
     Lit(IntLiteral) => Types::Int32,
     _ => {
-      process::exit(12)
+      exit(12)
     }
   }
 }
@@ -196,7 +194,7 @@ impl Parser {
         },
         _ => {
           eprintln!("'{}' is not a type or '{}' is not an identifier.", from_utf8(self.first().val).unwrap(), from_utf8(self.second().val).unwrap());
-          process::exit(1);
+          exit(1);
         }
       }
       self.bump()
@@ -208,16 +206,16 @@ impl Parser {
     let t = self.first().keyword();
     if !is_type(t) {
       eprintln!("'{}' is not a type.", from_utf8(self.first().val).unwrap());
-      process::exit(1)
+      exit(1)
     }
     let name = self.second().val;
     if self.second().kind != Ident {
       eprintln!("{} is {}, not an identifier.", from_utf8(name).unwrap(), self.second().kind);
-      process::exit(1)
+      exit(1)
     }
     if self.second().keyword() != Fail {
       eprintln!("You should not use the language keywords for function names");
-      process::exit(1)
+      exit(1)
     }
     self.bump();
     self.bump();
@@ -239,11 +237,12 @@ impl Parser {
 
   fn function_variable_recall(&mut self) -> AstTree {
     let recall_name = self.first().val;
+    self.bump(); // eat identifier
     if !self.scope.is_in_scope(recall_name) {
-      eprintln!("{} is not defined.", from_utf8(self.first().val).unwrap());
-      process::exit(1)
+      eprintln!("{} is not defined.", from_utf8(recall_name).unwrap());
+      exit(1)
     }
-    if self.second().kind != OpenParen {
+    if self.first().kind != OpenParen {
       return AstTree::AstVarCall(VarCall{name: recall_name})
     }
     self.bump(); // eat '('
@@ -251,12 +250,14 @@ impl Parser {
     while self.first().kind != CloseParen {
       params.push(self.parse_expression(false));
     }
+    self.bump(); // eat ')'
     AstTree::AstFuncCall(FuncCall{ name: &recall_name, args: params })
   }
 
   fn parse_rhs(&mut self, mut lhs: AstTree, this_prec: i8) -> AstTree {
     loop {
       if self.is_eoi() || self.first().kind == NewLine || self.first().kind == Semi {
+        self.bump();
         return lhs
       }
       let op = self.first().kind;
@@ -293,8 +294,8 @@ impl Parser {
         }
       },
       _ => {
-        eprintln!("didn't find expression.");
-        process::exit(1)
+        eprintln!("didn't find expression with {}.", self.first().kind);
+        exit(1)
       }
     }
   }
@@ -319,43 +320,46 @@ impl Parser {
       }
       _ => {
         eprintln!("this should never happen.");
-        process::exit(-1)
+        exit(-1)
       }
     }
   }
 
-  pub fn is_eoi(&self) -> bool {
-    self.index >= self.input.len()
-  }
-
-  pub fn parse_scope(&mut self) -> Vec<AstTree> {
+  fn parse_scope(&mut self) -> Vec<AstTree> {
     let mut nodes = vec![];
     self.bump(); // eat '{'
-    while self.first().kind != CloseBrace {
-      nodes.push(self.advance());
+    while self.first().kind != CloseBrace && !self.is_eoi() {
+      let n = self.advance();
+      if !n.is_none() {
+        nodes.push(n.unwrap())
+      }
     }
     self.bump(); // eat '}'
     self.scope.destruct(); // destruct the scope
     nodes
   }
 
-  pub fn advance(&mut self) -> AstTree {
-    println!("{}", self.first().kind);
+  pub fn is_eoi(&self) -> bool {
+    self.index >= self.input.len()
+  }
+
+  pub fn advance(&mut self) -> Option<AstTree> {
     match self.first().kind {
-      _ if is_type(self.first().keyword()) => self.function_variable_dec(),
-      _ if self.first().keyword() != Fail => self.keyword_expr(),
-      Ident => self.function_variable_recall(),
-      NewLine => {
+      _ if is_type(self.first().keyword()) => Some(self.function_variable_dec()),
+      _ if self.first().keyword() != Fail => Some(self.keyword_expr()),
+      Ident => Some(self.function_variable_recall()),
+      NewLine | Semi => {
         self.bump();
-        self.advance()
+        None
       },
       OpenBrace => {
         self.scope.new_scope();
-        AstTree::AstScope(CurleyScope{body: self.parse_scope()})
-      }
+        Some(AstTree::AstScope(CurleyScope{body: self.parse_scope()}))
+      },
+      Lit(IntLiteral) | Lit(FloatLiteral) => Some(self.parse_expression(false)),
       _ => {
         eprintln!("unexpected token {}", self.first().kind);
-        process::exit(1)
+        exit(1)
       }
     }
   }
@@ -365,7 +369,12 @@ pub fn parse(input: Vec<Token>) -> Vec<AstTree> {
   let mut nodes = vec![];
   let mut parser = Parser::new(input);
   while !parser.is_eoi() {
-    nodes.push(parser.advance());
+    let n = parser.advance();
+    if n.is_none() {
+      continue
+    } else {
+      nodes.push(n.unwrap())
+    }
   }
   nodes
 }

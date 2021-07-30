@@ -8,22 +8,26 @@ use crate::parser::AstTree;
 
 fn main() {
   let now = Instant::now();
-  let d = lexer::lex("i32 main(f32 poop, i64 length) {return 1 + 1}");
+  let d = lexer::lex("1 + 2\n");
   let p = parser::parse(d);
   let elapsed = now.elapsed();
-  let mut a = 0;
   for i in p {
-    a+=1;
-    println!("{}", a);
     if let AstTree::AstFuncDec(i) = i {
-      println!("{}", from_utf8(i.name).unwrap());
-      println!("{}", i.returns)
+      println!("functiondec name: {}", from_utf8(i.name).unwrap());
+      println!("functiondec returns: {}", i.returns)
     } else if let AstTree::Num(i) = i {
-      println!("{}", from_utf8(i.val).unwrap())
+      println!("number: {}", from_utf8(i.val).unwrap())
     } else if let AstTree::AstBin(e) = i {
-      if let AstTree::Num(i) = &e .params[0] {
-        println!("{}", from_utf8(i.val).unwrap())
+      for a in e.params {
+        if let AstTree::Num(i) = &a {
+          println!("bin param: {}", from_utf8(i.val).unwrap())
+        }
       }
+      println!("bin inst: {}", e.inst)
+    } else if let AstTree::AstVarCall(i) = i {
+      println!("{}", from_utf8(i.name).unwrap())
+    } else if let AstTree::AstFuncCall(i) = i {
+      println!("funccall name: {}", from_utf8(i.name).unwrap())
     }
   }
   println!("elapsed: {:.2?}", elapsed);
