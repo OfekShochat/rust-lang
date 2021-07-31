@@ -74,7 +74,7 @@ pub struct BinExpresion {
 pub struct FunctionDec {
   pub name: &'static [u8],
   args: Vec<Param>,
-  body: Vec<AstTree>,
+  pub body: Vec<AstTree>,
   pub returns: Types
 }
 
@@ -111,8 +111,12 @@ impl Scope {
     }
   }
 
+  fn sub_subscope_empty(&mut self) -> bool {
+    self.subscope[0].subscope_empty()
+  }
+
   pub fn destruct(&mut self) {
-    if !self.subscope_empty() {
+    if self.sub_subscope_empty() {
       self.subscope.remove(0);
     } else {
       self.subscope[0].destruct()
@@ -185,7 +189,7 @@ impl Parser {
     self.index += 1;
   }
 
-  fn get_scope_end(&self) -> usize {
+  /*fn get_scope_end(&self) -> usize {
     let mut i = 0;
     while self.input[i + self.index].kind != CloseBrace {
       if i + self.index >= self.input.len() - 1 {
@@ -195,7 +199,7 @@ impl Parser {
       i += 1
     }
     i + self.index + 1
-  }
+  }*/
 
   fn parse_function_params(&mut self) -> Vec<Param> {
     let mut params = vec![];
@@ -246,15 +250,15 @@ impl Parser {
   }
 
   fn parse_rhs(&mut self, mut lhs: AstTree, this_prec: i8, is_if_statement: bool) -> AstTree {
-    if self.first().kind == NewLine || self.first().kind == Semi {
+    if self.first().kind == NewLine || self.first().kind == Semi || (is_if_statement && self.first().kind == OpenBrace) {
       // there is only one number until end of the expression.
-      return lhs
-    } else if is_if_statement && self.first().kind == OpenBrace {
       return lhs
     }
     loop {
       if self.is_eoi() || self.first().kind == NewLine || self.first().kind == Semi {
         self.bump();
+        return lhs
+      } else if is_if_statement && self.first().kind == OpenBrace {
         return lhs
       }
 
@@ -281,7 +285,15 @@ impl Parser {
 
   fn parse_expression(&mut self, in_binary: bool, is_if_statement: bool) -> AstTree {
     match self.first().kind {
-      Ident => self.function_variable_recall(),
+      Ident => {
+        if in_binary {
+          self.function_variable_recall()
+        } else {
+          let b = self.binary(is_if_statement);
+          self.bump();
+          b
+        }
+      },
       Lit(IntLiteral) | Lit(FloatLiteral) => {
         if in_binary {
           let n = AstTree::Num(Number{typ: litkind_to_type(self.first().kind), val: self.first().val});
@@ -324,9 +336,9 @@ impl Parser {
       }
     }
 
-    let body = parse(self.input[self.index..self.get_scope_end()].into());
-    self.scope.add(name);
-    AstTree::AstFuncDec(FunctionDec {name: name, args: parameters, body: body, returns: tokentype_to_type(t)})
+    self.scope.add(name); // recursion
+    let body = self.parse_scope();
+    AstTree::AstFuncDec(FunctionDec {name: name, args: parameters, body: vec![body], returns: tokentype_to_type(t)})
   }
 
   fn parse_var(&mut self) -> AstTree {
@@ -361,9 +373,10 @@ impl Parser {
 
   fn if_statement(&mut self) -> AstTree {
     let expr = self.parse_expression(false, true);
-    let body = parse(self.input[self.index..self.get_scope_end()].into());
+    self.index -= 1; // parse_expression is also eating '{'
+    let body = self.parse_scope();
 
-    AstTree::AstIf(IfStatement{expr: vec![expr], body: body})
+    AstTree::AstIf(IfStatement{expr: vec![expr], body: vec![body]})
   }
 
   fn raw_llvm(&mut self) -> AstTree {
@@ -391,10 +404,11 @@ impl Parser {
     }
   }
 
-  fn parse_scope(&mut self) -> Vec<AstTree> {
+  fn parse_scope(&mut self) -> AstTree {
+    self.scope.new_scope();
     let mut nodes = vec![];
     self.bump(); // eat '{'
-    while self.first().kind != CloseBrace && !self.is_eoi() {
+    while !self.is_eoi() && self.first().kind != CloseBrace {
       let n = self.advance();
       if !n.is_none() {
         nodes.push(n.unwrap())
@@ -402,7 +416,7 @@ impl Parser {
     }
     self.bump(); // eat '}'
     self.scope.destruct(); // destruct the scope
-    nodes
+    AstTree::AstScope(CurleyScope{body: nodes})
   }
 
   pub fn is_eoi(&self) -> bool {
@@ -413,16 +427,14 @@ impl Parser {
     match self.first().kind {
       _ if is_type(self.first().keyword()) => Some(self.function_variable_dec()),
       _ if self.first().keyword() != Fail => Some(self.keyword_expr()),
-      Ident => Some(self.function_variable_recall()),
       NewLine | Semi => {
         self.bump();
         None
       },
       OpenBrace => {
-        self.scope.new_scope();
-        Some(AstTree::AstScope(CurleyScope{body: self.parse_scope()}))
+        Some(self.parse_scope())
       },
-      Lit(IntLiteral) | Lit(FloatLiteral) => Some(self.parse_expression(false, false)),
+      Lit(IntLiteral) | Lit(FloatLiteral) | Ident => Some(self.parse_expression(false, false)),
       _ => {
         eprintln!("unexpected token {}", self.first().kind);
         exit(1)

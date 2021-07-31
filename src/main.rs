@@ -1,6 +1,7 @@
 pub mod token_kinds;
 pub mod lexer;
 pub mod parser;
+mod emitter;
 
 use std::{str::from_utf8, time::Instant};
 
@@ -22,7 +23,7 @@ fn print_binop(e: BinExpresion, depth: i8) {
 
 fn main() {
   let now = Instant::now();
-  let d = lexer::lex("if 0 > 0 {\n");
+  let d = lexer::lex("f32 main() {if 4+2 {return 1;}}\n");
   let p = parser::parse(d);
   let elapsed = now.elapsed();
   for i in p {
