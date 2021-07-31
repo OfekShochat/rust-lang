@@ -6,3 +6,4 @@ authors = ["Ofek Shochat"]
 license = "poop"
 
 [dependencies]
+llvm-sys = "*"

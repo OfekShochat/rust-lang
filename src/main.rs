@@ -1,7 +1,7 @@
 pub mod token_kinds;
 pub mod lexer;
 pub mod parser;
-mod emitter;
+mod llvm_backend;
 
 use std::{str::from_utf8, time::Instant};
 
