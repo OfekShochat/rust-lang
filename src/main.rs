@@ -22,7 +22,7 @@ fn print_binop(e: BinExpresion, depth: i8) {
 
 fn main() {
   let now = Instant::now();
-  let d = lexer::lex("i32 main = 3;\n");
+  let d = lexer::lex("if 0 > 0 {\n");
   let p = parser::parse(d);
   let elapsed = now.elapsed();
   for i in p {
@@ -34,9 +34,14 @@ fn main() {
     } else if let AstTree::AstBin(e) = i {
       print_binop(e, 0);
     } else if let AstTree::AstVarCall(i) = i {
-      println!("{}", from_utf8(i.name).unwrap())
+      println!("varcall name: {}", from_utf8(i.name).unwrap());
     } else if let AstTree::AstFuncCall(i) = i {
       println!("funccall name: {}", from_utf8(i.name).unwrap())
+    } else if let AstTree::AstVarDec(c) = i {
+      println!("vardef name: {}", from_utf8(c.name).unwrap());
+      println!("vardef type: {}", c.typ)
+    } else if let AstTree::AstScope(c) = i {
+      println!("{}", c.body.len())
     }
   }
   println!("elapsed: {:.2?}", elapsed);

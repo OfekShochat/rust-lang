@@ -19,20 +19,20 @@ impl Token {
   pub fn combine_tokens(&self, tok: Token) -> TokenKind {
     match self.kind {
       Eq => match tok.kind {
-        Eq => DEq,
+        Eq => Bin(DEq),
         Bin(Gt) => FatRArrow,
         _ => Fail
       },
       Bin(Lt) => match tok.kind {
-        Eq => LEq,
+        Eq => Bin(LEq),
         _ => Fail
       },
       Bin(Gt) => match tok.kind {
-        Eq => GEq,
+        Eq => Bin(GEq),
         _ => Fail
       },
       Not => match tok.kind {
-        Eq => NotEq,
+        Eq => Bin(NotEq),
         _ => Fail
       },
       Bin(Add) => match tok.kind {
@@ -65,11 +65,11 @@ impl Token {
 
   pub fn split(&mut self) -> (TokenKind, TokenKind) {
     match self.kind {
-      DEq => (Eq, Eq),
-      NotEq => (Not, Eq),
-      AndAnd => (And, And),
+      Bin(DEq) => (Eq, Eq),
+      Bin(NotEq) => (Not, Eq),
+      Bin(AndAnd) => (And, And),
       ColonColon => (Colon, Colon),
-      OrOr => (Or, Or),
+      Bin(OrOr) => (Or, Or),
       RArrow => (Bin(Sub), Bin(Gt)),
       FatRArrow => (Eq, Bin(Gt)),
       AddEq => (Bin(Add), Eq),
@@ -95,6 +95,7 @@ impl Token {
       "switch" => Switch,
       "const" => Const,
       "return" => Return,
+      "extern_llvm" => LLVM,
       "i32" => I32Type,
       "i64" => I64Type,
       "f32" => F32Type,

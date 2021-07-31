@@ -14,7 +14,9 @@ pub enum AstTree {
   Type(Types),
   AstScope(CurleyScope),
   Num(Number),
-  AstVarDec(VarDec)
+  AstVarDec(VarDec),
+  AstRawLLVM(RawLLVM),
+  AstIf(IfStatement)
 }
 
 #[derive(Debug)]
@@ -31,9 +33,18 @@ impl fmt::Display for Types {
   }
 }
 
+pub struct IfStatement {
+  expr: Vec<AstTree>,
+  body: Vec<AstTree>
+}
+
+pub struct RawLLVM {
+  filename: &'static [u8]
+}
+
 pub struct VarDec {
-  typ: Types,
-  name: &'static [u8],
+  pub typ: Types,
+  pub name: &'static [u8],
   val: Vec<AstTree>,
 }
 
@@ -43,7 +54,7 @@ pub struct Number {
 }
 
 pub struct CurleyScope {
-  body: Vec<AstTree>
+  pub body: Vec<AstTree>
 }
 
 pub struct VarCall {
@@ -141,6 +152,8 @@ fn get_precedence(op: TokenKind) -> i8 {
   match op {
     Bin(Gt) => 10,
     Bin(Lt) => 10,
+    Bin(GEq) => 10,
+    Bin(LEq) => 10,
     Bin(Add) => 20,
     Bin(Sub) => 20,
     Bin(Mul) => 30,
@@ -172,9 +185,13 @@ impl Parser {
     self.index += 1;
   }
 
-  fn get_function_end(&self) -> usize {
+  fn get_scope_end(&self) -> usize {
     let mut i = 0;
     while self.input[i + self.index].kind != CloseBrace {
+      if i + self.index >= self.input.len() - 1 {
+        eprintln!("EOI when parsing scope.");
+        exit(1)
+      }
       i += 1
     }
     i + self.index + 1
@@ -213,7 +230,7 @@ impl Parser {
     let recall_name = self.first().val;
     self.bump(); // eat identifier
     if !self.scope.is_in_scope(recall_name) {
-      eprintln!("{} is not defined.", from_utf8(recall_name).unwrap());
+      eprintln!("{} is not yet defined.", from_utf8(recall_name).unwrap());
       exit(1)
     }
     if self.first().kind != OpenParen {
@@ -222,13 +239,19 @@ impl Parser {
     self.bump(); // eat '('
     let mut params = vec![];
     while self.first().kind != CloseParen {
-      params.push(self.parse_expression(false));
+      params.push(self.parse_expression(false, false));
     }
     self.bump(); // eat ')'
     AstTree::AstFuncCall(FuncCall{ name: &recall_name, args: params })
   }
 
-  fn parse_rhs(&mut self, mut lhs: AstTree, this_prec: i8) -> AstTree {
+  fn parse_rhs(&mut self, mut lhs: AstTree, this_prec: i8, is_if_statement: bool) -> AstTree {
+    if self.first().kind == NewLine || self.first().kind == Semi {
+      // there is only one number until end of the expression.
+      return lhs
+    } else if is_if_statement && self.first().kind == OpenBrace {
+      return lhs
+    }
     loop {
       if self.is_eoi() || self.first().kind == NewLine || self.first().kind == Semi {
         self.bump();
@@ -242,21 +265,21 @@ impl Parser {
       }
       self.bump(); // eat op
 
-      let mut rhs = self.parse_expression(true);
+      let mut rhs = self.parse_expression(true, is_if_statement);
       let next_prec = get_precedence(self.first().kind);
       if prec < next_prec {
-        rhs = self.parse_rhs(rhs, prec + 1)
+        rhs = self.parse_rhs(rhs, prec + 1, is_if_statement)
       }
       lhs = AstTree::AstBin(BinExpresion {params: vec![lhs, rhs], inst: op})
     }
   }
 
-  fn binary(&mut self) -> AstTree {
-    let lhs = self.parse_expression(true);
-    self.parse_rhs(lhs, 0)
+  fn binary(&mut self, is_if_statement: bool) -> AstTree {
+    let lhs = self.parse_expression(true, is_if_statement);
+    self.parse_rhs(lhs, 0, is_if_statement)
   }
 
-  fn parse_expression(&mut self, in_binary: bool) -> AstTree {
+  fn parse_expression(&mut self, in_binary: bool, is_if_statement: bool) -> AstTree {
     match self.first().kind {
       Ident => self.function_variable_recall(),
       Lit(IntLiteral) | Lit(FloatLiteral) => {
@@ -265,7 +288,7 @@ impl Parser {
           self.bump();
           n
         } else {
-          let b = self.binary();
+          let b = self.binary(is_if_statement);
           self.bump();
           b
         }
@@ -301,7 +324,7 @@ impl Parser {
       }
     }
 
-    let body = parse(self.input[self.index..self.get_function_end()].into());
+    let body = parse(self.input[self.index..self.get_scope_end()].into());
     self.scope.add(name);
     AstTree::AstFuncDec(FunctionDec {name: name, args: parameters, body: body, returns: tokentype_to_type(t)})
   }
@@ -319,8 +342,9 @@ impl Parser {
     self.bump(); // eat name
     self.bump(); // eat '='
 
-    let val = self.parse_expression(false);
+    let val = self.parse_expression(false, false);
 
+    self.scope.add(name);
     AstTree::AstVarDec(VarDec {typ: tokentype_to_type(t), name: name, val: vec![val]})
   }
 
@@ -328,7 +352,6 @@ impl Parser {
     if self.input[self.index + 2].kind == OpenParen {
       self.parse_function()
     } else if self.input[self.index + 2].kind == Eq {
-      // variable dec
       self.parse_var()
     } else {
       eprintln!("Syntax Error: unexpected {} was encountered after identifier declaration (expected ';', '\\n', '=' or '(').", self.input[self.index + 2].kind);
@@ -336,12 +359,31 @@ impl Parser {
     }
   }
 
+  fn if_statement(&mut self) -> AstTree {
+    let expr = self.parse_expression(false, true);
+    let body = parse(self.input[self.index..self.get_scope_end()].into());
+
+    AstTree::AstIf(IfStatement{expr: vec![expr], body: body})
+  }
+
+  fn raw_llvm(&mut self) -> AstTree {
+    AstTree::AstRawLLVM(RawLLVM {filename: self.first().val})
+  }
+
   fn keyword_expr(&mut self) -> AstTree {
     match self.first().keyword() {
       Return => {
         self.bump();
-        self.parse_expression(false)
-      }
+        self.parse_expression(false, false)
+      },
+      LLVM => {
+        self.bump();
+        self.raw_llvm()
+      },
+      If => {
+        self.bump();
+        self.if_statement()
+      },
       _ => {
         eprintln!("this should never happen.");
         exit(-1)
@@ -380,7 +422,7 @@ impl Parser {
         self.scope.new_scope();
         Some(AstTree::AstScope(CurleyScope{body: self.parse_scope()}))
       },
-      Lit(IntLiteral) | Lit(FloatLiteral) => Some(self.parse_expression(false)),
+      Lit(IntLiteral) | Lit(FloatLiteral) => Some(self.parse_expression(false, false)),
       _ => {
         eprintln!("unexpected token {}", self.first().kind);
         exit(1)

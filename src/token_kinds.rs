@@ -18,18 +18,18 @@ pub enum BinOp {
   Percent, // '%'
   Gt, // '>' (Greater Than)
   Lt, // '<' (Less Than)
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum TokenKind {
-  /* - Expresion operators - */
-  Eq, // '='
   DEq, // '=='
   LEq, // '<='
   GEq, // '>='
   NotEq, // '!='
   AndAnd, // '&&'
   OrOr, // '||'
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum TokenKind {
+  /* - Expresion operators - */
+  Eq, // '='
   Not, // '!'
   Tilde, // '~' (Wiggle)
   Bin(BinOp),
@@ -78,6 +78,7 @@ pub enum TokenKind {
   Switch,
   Const,
   Return,
+  LLVM,
 
   Name,
   Comment,
