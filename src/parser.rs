@@ -299,7 +299,6 @@ impl Parser {
   }
 
   fn parse_expression(&mut self, in_binary: bool, is_if_statement: bool) -> AstTree {
-    println!("{}", self.index);
     match self.first().kind {
       Ident => {
         if in_binary {
