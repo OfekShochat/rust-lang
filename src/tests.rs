@@ -25,7 +25,7 @@ mod parser_tests {
 
   #[test]
   #[should_panic]
-  fn ident_out_of_spoe() {
+  fn ident_out_of_scpoe() {
     let d = lexer::lex("a");
     parser::parse(d, "test4");
   }
@@ -50,8 +50,27 @@ mod parser_tests {
 
   #[test]
   fn function_dec() {
-    let d = lexer::lex("i32 main(i32 a, i32 b) {return a+2;}");
+    let d = lexer::lex("i32 main(i32 a, i32 b) {return a+b;}");
     parser::parse(d, "test8");
+  }
+
+  #[test]
+  #[should_panic]
+  fn return_in_if_statement() {
+    let d = lexer::lex("if 1 > 2 {return 1;}");
+    parser::parse(d, "test9");
+  }
+
+  #[test]
+  fn if_statement() {
+    let d = lexer::lex("if 1 > 2 {\ni32 d = 0\n}");
+    parser::parse(d, "test10");
+  }
+
+  #[test]
+  fn scope() {
+    let d = lexer::lex("{i32 a = 0;}");
+    parser::parse(d, "test11");
   }
 }
 
