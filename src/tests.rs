@@ -1,3 +1,4 @@
+#[cfg(test)]
 mod parser_tests {
   use lexer;
   use parser;
@@ -44,7 +45,7 @@ mod parser_tests {
   #[test]
   fn llvm() {
     let d = lexer::lex("extern_llvm \"file.ll\"");
-    parser::parse(d, "test6");
+    parser::parse(d, "test7");
   }
 }
 
