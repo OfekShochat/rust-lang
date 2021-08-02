@@ -214,7 +214,9 @@ impl Parser {
       }
       match (self.first().keyword(), self.second().kind) {
         (I32Type | I64Type | F32Type, Ident) => {
-          params.push(Param {name: self.second().val, t: self.first().keyword()});
+          let typ = self.first().keyword();
+          params.push(Param {name: self.second().val, t: typ});
+          self.scope.add(self.second().val, tokentype_to_type(typ));
           self.bump()
         },
         (Comma, I32Type | I64Type | F32Type) => {
@@ -339,6 +341,7 @@ impl Parser {
     }
     self.bump();
     self.bump();
+    self.scope.new_scope();
     let parameters = self.parse_function_params();
     self.bump();
 
@@ -392,6 +395,7 @@ impl Parser {
   fn if_statement(&mut self) -> AstTree {
     let expr = self.parse_expression(false, true);
     self.index -= 1; // parse_expression is also eating '{'
+    self.scope.new_scope();
     let body = self.parse_scope();
 
     AstTree::AstIf(IfStatement{expr: vec![expr], body: vec![body]})
@@ -430,7 +434,6 @@ impl Parser {
   }
 
   fn parse_scope(&mut self) -> AstTree {
-    self.scope.new_scope();
     let mut nodes = vec![];
     self.bump(); // eat '{'
     while !self.is_eoi() && self.first().kind != CloseBrace {
@@ -471,6 +474,7 @@ impl Parser {
         None
       },
       OpenBrace => {
+        self.scope.new_scope();
         Some(self.parse_scope())
       },
       Lit(IntLiteral) | Lit(FloatLiteral) | Ident => Some(self.parse_expression(false, false)),
