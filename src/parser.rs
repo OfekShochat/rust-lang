@@ -223,7 +223,7 @@ impl Parser {
         },
         _ => {
           eprintln!("{}'{}' is not a type or '{}' is not an identifier.", self.print_line(), from_utf8(self.first().val).unwrap(), from_utf8(self.second().val).unwrap());
-          exit(1);
+          panic!();
         }
       }
       self.bump()
@@ -236,7 +236,7 @@ impl Parser {
     self.bump(); // eat identifier
     if !self.scope.is_in_scope(recall_name) {
       eprintln!("{}{} is not yet defined.", self.print_line(), from_utf8(recall_name).unwrap());
-      exit(1)
+      panic!()
     }
     if self.first().kind != OpenParen {
       return AstTree::AstVarCall(VarCall{name: recall_name})
@@ -321,7 +321,7 @@ impl Parser {
       },
       _ => {
         eprintln!("{}didn't find expression with {}.", self.print_line(), self.first().kind);
-        exit(1)
+        panic!()
       }
     }
   }
@@ -331,11 +331,11 @@ impl Parser {
     let name = self.second().val;
     if self.second().kind != Ident {
       eprintln!("{}{} is {}, not an identifier.", self.print_line(), from_utf8(name).unwrap(), self.second().kind);
-      exit(1)
+      panic!()
     }
     if self.second().keyword() != Fail {
       eprintln!("{}You should not use the language keywords for function names", self.print_line());
-      exit(1)
+      panic!()
     }
     self.bump();
     self.bump();
@@ -362,12 +362,12 @@ impl Parser {
     let name = self.first().val;
     if from_utf8(name).unwrap() == "main" {
       eprintln!("{}don't use 'main' as a variable name. it is the entrypoint to the program.", self.print_line());
-      exit(1)
+      panic!()
     } 
 
     if self.first().kind != Ident {
       eprintln!("{}{} is {}, not an identifier.", self.print_line(), from_utf8(name).unwrap(), self.second().kind);
-      exit(1)
+      panic!()
     }
     self.bump(); // eat name
     self.bump(); // eat '='
@@ -385,7 +385,7 @@ impl Parser {
       self.parse_var()
     } else {
       eprintln!("{}Syntax Error: unexpected {} was encountered after identifier declaration (expected ';', '\\n', '=' or '(').", self.print_line(), self.input[self.index + 2].kind);
-      exit(1)
+      panic!()
     }
   }
 
@@ -401,11 +401,16 @@ impl Parser {
     AstTree::AstRawLLVM(RawLLVM {filename: self.first().val})
   }
 
-  fn keyword_expr(&mut self) -> AstTree {
+  fn keyword_expr(&mut self, in_scope: bool) -> AstTree {
     match self.first().keyword() {
       Return => {
-        self.bump();
-        self.parse_expression(false, false)
+        if in_scope {
+          self.bump();
+          self.parse_expression(false, false)
+        } else {
+          eprintln!("return without a scope to return from");
+          panic!()
+        }
       },
       LLVM => {
         self.bump();
@@ -417,7 +422,7 @@ impl Parser {
       },
       _ => {
         eprintln!("this should never happen.");
-        exit(-1)
+        panic!()
       }
     }
   }
@@ -427,14 +432,14 @@ impl Parser {
     let mut nodes = vec![];
     self.bump(); // eat '{'
     while !self.is_eoi() && self.first().kind != CloseBrace {
-      let n = self.advance();
+      let n = self.advance(true);
       if !n.is_none() {
         nodes.push(n.unwrap())
       }
     }
     if self.is_eoi() {
       eprintln!("{}EOI was encountered before scope was closed.", self.print_line());
-      exit(1)
+      panic!()
     }
     self.bump(); // eat '}'
     self.scope.destruct(); // destruct the scope
@@ -453,10 +458,10 @@ impl Parser {
     self.index >= self.input.len()
   }
 
-  pub fn advance(&mut self) -> Option<AstTree> {
+  pub fn advance(&mut self, in_scope: bool) -> Option<AstTree> {
     match self.first().kind {
       _ if is_type(self.first().keyword()) => Some(self.function_variable_dec()),
-      _ if self.first().keyword() != Fail => Some(self.keyword_expr()),
+      _ if self.first().keyword() != Fail => Some(self.keyword_expr(in_scope)),
       _ if self.first().kind == Ident && self.second().kind == Eq => Some(self.assignment()),
       NewLine | Semi => {
         self.bump_line();
@@ -469,7 +474,7 @@ impl Parser {
       Lit(IntLiteral) | Lit(FloatLiteral) | Ident => Some(self.parse_expression(false, false)),
       _ => {
         eprintln!("{}unexpected token {}", self.print_line(), self.first().kind);
-        exit(1)
+        panic!()
       }
     }
   }
@@ -479,7 +484,7 @@ pub fn parse(input: Vec<Token>, filename: &'static str) -> Vec<AstTree> {
   let mut nodes = vec![];
   let mut parser = Parser::new(input, filename);
   while !parser.is_eoi() {
-    let n = parser.advance();
+    let n = parser.advance(false);
     if n.is_none() {
       continue
     } else {
