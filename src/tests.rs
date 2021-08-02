@@ -43,9 +43,15 @@ mod parser_tests {
   }
 
   #[test]
-  fn llvm() {
+  fn extern_llvm() {
     let d = lexer::lex("extern_llvm \"file.ll\"");
     parser::parse(d, "test7");
+  }
+
+  #[test]
+  fn function_dec() {
+    let d = lexer::lex("i32 main(i32 a, i32 b) {return a+2;}");
+    parser::parse(d, "test8");
   }
 }
 
