@@ -79,6 +79,12 @@ mod parser_tests {
     let d = lexer::lex("{i32 a = 0;");
     parser::parse(d, "test12");
   }
+
+  #[test]
+  fn expr_with_block_comment() {
+    let d = lexer::lex("{i32 a = 0; /* comment comment */}");
+    parser::parse(d, "test13");
+  }
 }
 
 // TODO(ghostway): codegen tests

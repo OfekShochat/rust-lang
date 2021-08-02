@@ -472,6 +472,10 @@ impl Parser {
         self.bump();
         None
       },
+      Comment => {
+        self.bump();
+        None
+      },
       OpenBrace => {
         self.scope.new_scope();
         Some(self.parse_scope(in_function))
