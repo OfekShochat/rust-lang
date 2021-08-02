@@ -2,7 +2,7 @@ use lexer::Token;
 
 use crate::token_kinds::{BinOp::*, Literal::*, TokenKind::*};
 use crate::token_kinds::TokenKind;
-use std::fmt;
+use std::{fmt, vec};
 use std::process::exit;
 use std::str::from_utf8;
 
@@ -73,14 +73,15 @@ pub struct BinExpresion {
 
 pub struct FunctionDec {
   pub name: &'static [u8],
-  args: Vec<Param>,
+  pub args: Vec<Param>,
   pub body: Vec<AstTree>,
   pub returns: Types
 }
 
 struct Scope {
   subscope: Vec<Scope>,
-  names: Vec<&'static [u8]>
+  names: Vec<&'static [u8]>,
+  types: Vec<Types>
 }
 
 impl Scope {
@@ -93,7 +94,7 @@ impl Scope {
 
   pub fn new_scope(&mut self) {
     if self.subscope_empty() {
-      self.subscope.push(Scope {subscope: vec![], names: vec![]})
+      self.subscope.push(Scope {subscope: vec![], names: vec![], types: vec![]})
     } else {
       self.subscope[0].new_scope()
     }
@@ -103,11 +104,12 @@ impl Scope {
     self.subscope.len() == 0
   }
 
-  pub fn add(&mut self, name: &'static [u8]) {
+  pub fn add(&mut self, name: &'static [u8], typ: Types) {
     if self.subscope_empty() {
-      self.names.push(name)
+      self.names.push(name);
+      self.types.push(typ)
     } else {
-      self.subscope[0].add(name)
+      self.subscope[0].add(name, typ)
     }
   }
 
@@ -158,6 +160,7 @@ fn get_precedence(op: TokenKind) -> i8 {
     Bin(Lt) => 10,
     Bin(GEq) => 10,
     Bin(LEq) => 10,
+    Bin(NotEq) => 10,
     Bin(Add) => 20,
     Bin(Sub) => 20,
     Bin(Mul) => 30,
@@ -170,11 +173,15 @@ struct Parser {
   input: Vec<Token>,
   scope: Scope,
   index: usize,
+
+  // debug info
+  line_num: usize,
+  filename: &'static str
 }
 
 impl Parser {
-  pub fn new(input_tokens: Vec<Token>) -> Parser {
-    Parser {input: input_tokens, scope: Scope {subscope: vec![], names: vec![]}, index: 0}
+  pub fn new(input_tokens: Vec<Token>, filename: &'static str) -> Parser {
+    Parser {input: input_tokens, scope: Scope {subscope: vec![], names: vec![], types: vec![]}, index: 0, line_num: 0, filename: filename}
   }
 
   fn first(&self) -> Token {
@@ -188,18 +195,6 @@ impl Parser {
   fn bump(&mut self) {
     self.index += 1;
   }
-
-  /*fn get_scope_end(&self) -> usize {
-    let mut i = 0;
-    while self.input[i + self.index].kind != CloseBrace {
-      if i + self.index >= self.input.len() - 1 {
-        eprintln!("EOI when parsing scope.");
-        exit(1)
-      }
-      i += 1
-    }
-    i + self.index + 1
-  }*/
 
   fn parse_function_params(&mut self) -> Vec<Param> {
     let mut params = vec![];
@@ -221,7 +216,7 @@ impl Parser {
           self.bump()
         },
         _ => {
-          eprintln!("'{}' is not a type or '{}' is not an identifier.", from_utf8(self.first().val).unwrap(), from_utf8(self.second().val).unwrap());
+          eprintln!("{}'{}' is not a type or '{}' is not an identifier.", self.print_line(), from_utf8(self.first().val).unwrap(), from_utf8(self.second().val).unwrap());
           exit(1);
         }
       }
@@ -234,7 +229,7 @@ impl Parser {
     let recall_name = self.first().val;
     self.bump(); // eat identifier
     if !self.scope.is_in_scope(recall_name) {
-      eprintln!("{} is not yet defined.", from_utf8(recall_name).unwrap());
+      eprintln!("{}{} is not yet defined.", self.print_line(), from_utf8(recall_name).unwrap());
       exit(1)
     }
     if self.first().kind != OpenParen {
@@ -306,7 +301,7 @@ impl Parser {
         }
       },
       _ => {
-        eprintln!("didn't find expression with {}.", self.first().kind);
+        eprintln!("{}didn't find expression with {}.", self.print_line(), self.first().kind);
         exit(1)
       }
     }
@@ -316,11 +311,11 @@ impl Parser {
     let t = self.first().keyword(); // already verified in `self.advance()`
     let name = self.second().val;
     if self.second().kind != Ident {
-      eprintln!("{} is {}, not an identifier.", from_utf8(name).unwrap(), self.second().kind);
+      eprintln!("{}{} is {}, not an identifier.", self.print_line(), from_utf8(name).unwrap(), self.second().kind);
       exit(1)
     }
     if self.second().keyword() != Fail {
-      eprintln!("You should not use the language keywords for function names");
+      eprintln!("{}You should not use the language keywords for function names", self.print_line());
       exit(1)
     }
     self.bump();
@@ -336,7 +331,7 @@ impl Parser {
       }
     }
 
-    self.scope.add(name); // recursion
+    self.scope.add(name, tokentype_to_type(t)); // recursion
     let body = self.parse_scope();
     AstTree::AstFuncDec(FunctionDec {name: name, args: parameters, body: vec![body], returns: tokentype_to_type(t)})
   }
@@ -346,9 +341,13 @@ impl Parser {
     self.bump(); // eat type
 
     let name = self.first().val;
+    if from_utf8(name).unwrap() == "main" {
+      eprintln!("{}don't use 'main' as a variable name. it is the entrypoint to the program.", self.print_line());
+      exit(1)
+    } 
 
     if self.first().kind != Ident {
-      eprintln!("{} is {}, not an identifier.", from_utf8(name).unwrap(), self.second().kind);
+      eprintln!("{}{} is {}, not an identifier.", self.print_line(), from_utf8(name).unwrap(), self.second().kind);
       exit(1)
     }
     self.bump(); // eat name
@@ -356,7 +355,7 @@ impl Parser {
 
     let val = self.parse_expression(false, false);
 
-    self.scope.add(name);
+    self.scope.add(name, tokentype_to_type(t));
     AstTree::AstVarDec(VarDec {typ: tokentype_to_type(t), name: name, val: vec![val]})
   }
 
@@ -366,7 +365,7 @@ impl Parser {
     } else if self.input[self.index + 2].kind == Eq {
       self.parse_var()
     } else {
-      eprintln!("Syntax Error: unexpected {} was encountered after identifier declaration (expected ';', '\\n', '=' or '(').", self.input[self.index + 2].kind);
+      eprintln!("{}Syntax Error: unexpected {} was encountered after identifier declaration (expected ';', '\\n', '=' or '(').", self.print_line(), self.input[self.index + 2].kind);
       exit(1)
     }
   }
@@ -414,9 +413,21 @@ impl Parser {
         nodes.push(n.unwrap())
       }
     }
+    if self.is_eoi() {
+      eprintln!("{}EOI was encountered before scope was closed.", self.print_line());
+      exit(1)
+    }
     self.bump(); // eat '}'
     self.scope.destruct(); // destruct the scope
     AstTree::AstScope(CurleyScope{body: nodes})
+  }
+
+  fn bump_line(&mut self) {
+    self.line_num += 1
+  }
+
+  fn print_line(&self) -> String {
+    format!("{}:{}: ", self.filename, self.line_num)
   }
 
   pub fn is_eoi(&self) -> bool {
@@ -428,6 +439,7 @@ impl Parser {
       _ if is_type(self.first().keyword()) => Some(self.function_variable_dec()),
       _ if self.first().keyword() != Fail => Some(self.keyword_expr()),
       NewLine | Semi => {
+        self.bump_line();
         self.bump();
         None
       },
@@ -436,16 +448,16 @@ impl Parser {
       },
       Lit(IntLiteral) | Lit(FloatLiteral) | Ident => Some(self.parse_expression(false, false)),
       _ => {
-        eprintln!("unexpected token {}", self.first().kind);
+        eprintln!("{}unexpected token {}", self.print_line(), self.first().kind);
         exit(1)
       }
     }
   }
 }
 
-pub fn parse(input: Vec<Token>) -> Vec<AstTree> {
+pub fn parse(input: Vec<Token>, filename: &'static str) -> Vec<AstTree> {
   let mut nodes = vec![];
-  let mut parser = Parser::new(input);
+  let mut parser = Parser::new(input, filename);
   while !parser.is_eoi() {
     let n = parser.advance();
     if n.is_none() {

@@ -2,6 +2,7 @@ use crate::token_kinds::TokenKind::*;
 use crate::token_kinds::Literal::*;
 use crate::token_kinds::BinOp::*;
 use crate::token_kinds::TokenKind;
+use std::process::exit;
 use std::str;
 
 #[derive(Clone, Copy)]
@@ -59,7 +60,7 @@ impl Token {
         Colon => ColonColon,
         _ => Fail
       },
-      _ => Fail
+      _ => self.kind
     }
   }
 
@@ -220,6 +221,88 @@ impl Lexer {
     Lit(StringLiteral)
   }
 
+  fn colon(&mut self) -> TokenKind {
+    if self.second() == ':' {
+      ColonColon
+    } else {
+      Colon
+    }
+  }
+
+  fn eq(&mut self) -> TokenKind {
+    if self.second() == '=' {
+      Bin(DEq)
+    } else {
+      Eq
+    }
+  }
+
+  fn not(&mut self) -> TokenKind {
+    if self.second() == '=' {
+      Bin(NotEq)
+    } else {
+      Not
+    }
+  }
+
+  fn lt(&mut self) -> TokenKind {
+    if self.second() == '=' {
+      Bin(LEq)
+    } else {
+      Bin(Lt)
+    }
+  }
+
+  fn gt(&mut self) -> TokenKind {
+    if self.second() == '=' {
+      Bin(GEq)
+    } else {
+      Bin(Gt)
+    }
+  }
+
+  fn and(&mut self) -> TokenKind {
+    if self.second() == '&' {
+      Bin(AndAnd)
+    } else {
+      eprintln!("found an alone '&'");
+      exit(1)
+    }
+  }
+
+  fn or(&mut self) -> TokenKind {
+    if self.second() == '|' {
+      Bin(OrOr)
+    } else {
+      eprintln!("found an alone '|'");
+      exit(1)
+    }
+  }
+
+  fn sub(&mut self) -> TokenKind {
+    if self.second() == '=' {
+      SubEq
+    } else {
+      Bin(Sub)
+    }
+  }
+
+  fn add(&mut self) -> TokenKind {
+    if self.second() == '=' {
+      AddEq
+    } else {
+      Bin(Add)
+    }
+  }
+
+  fn mul(&mut self) -> TokenKind {
+    if self.second() == '=' {
+      MulEq
+    } else {
+      Bin(Mul)
+    }
+  }
+
   pub fn is_eoi(&self) -> bool {
     self.index >= self.input.len()
   }
@@ -244,16 +327,16 @@ impl Lexer {
         '[' => OpenBracket,
         ']' => CloseBracket,
         '~' => Tilde,
-        ':' => Colon,
-        '=' => Eq,
-        '!' => Not,
-        '<' => Bin(Lt),
-        '>' => Bin(Gt),
-        '-' => Bin(Sub),
-        '&' => And,
-        '|' => Or,
-        '+' => Bin(Add),
-        '*' => Bin(Mul),
+        ':' => self.colon(),
+        '=' => self.eq(),
+        '!' => self.not(),
+        '<' => self.lt(),
+        '>' => self.gt(),
+        '-' => self.sub(),
+        '&' => self.and(),
+        '|' => self.or(),
+        '+' => self.add(),
+        '*' => self.mul(),
         '%' => Bin(Percent),
         '\n' => NewLine,
 
