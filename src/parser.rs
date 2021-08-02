@@ -354,7 +354,7 @@ impl Parser {
     }
 
     self.scope.add(name, tokentype_to_type(t)); // recursion
-    let body = self.parse_scope();
+    let body = self.parse_scope(true);
     AstTree::AstFuncDec(FunctionDec {name: name, args: parameters, body: vec![body], returns: tokentype_to_type(t)})
   }
 
@@ -396,7 +396,7 @@ impl Parser {
     let expr = self.parse_expression(false, true);
     self.index -= 1; // parse_expression is also eating '{'
     self.scope.new_scope();
-    let body = self.parse_scope();
+    let body = self.parse_scope(false);
 
     AstTree::AstIf(IfStatement{expr: vec![expr], body: vec![body]})
   }
@@ -407,10 +407,10 @@ impl Parser {
     AstTree::AstRawLLVM(RawLLVM {filename: fname})
   }
 
-  fn keyword_expr(&mut self, in_scope: bool) -> AstTree {
+  fn keyword_expr(&mut self, in_function: bool) -> AstTree {
     match self.first().keyword() {
       Return => {
-        if in_scope {
+        if in_function {
           self.bump();
           self.parse_expression(false, false)
         } else {
@@ -433,11 +433,11 @@ impl Parser {
     }
   }
 
-  fn parse_scope(&mut self) -> AstTree {
+  fn parse_scope(&mut self, in_function: bool) -> AstTree {
     let mut nodes = vec![];
     self.bump(); // eat '{'
     while !self.is_eoi() && self.first().kind != CloseBrace {
-      let n = self.advance(true);
+      let n = self.advance(in_function);
       if !n.is_none() {
         nodes.push(n.unwrap())
       }
@@ -463,10 +463,10 @@ impl Parser {
     self.index >= self.input.len()
   }
 
-  pub fn advance(&mut self, in_scope: bool) -> Option<AstTree> {
+  pub fn advance(&mut self, in_function: bool) -> Option<AstTree> {
     match self.first().kind {
       _ if is_type(self.first().keyword()) => Some(self.function_variable_dec()),
-      _ if self.first().keyword() != Fail => Some(self.keyword_expr(in_scope)),
+      _ if self.first().keyword() != Fail => Some(self.keyword_expr(in_function)),
       _ if self.first().kind == Ident && self.second().kind == Eq => Some(self.assignment()),
       NewLine | Semi => {
         self.bump_line();
@@ -475,7 +475,7 @@ impl Parser {
       },
       OpenBrace => {
         self.scope.new_scope();
-        Some(self.parse_scope())
+        Some(self.parse_scope(in_function))
       },
       Lit(IntLiteral) | Lit(FloatLiteral) | Ident => Some(self.parse_expression(false, false)),
       _ => {
