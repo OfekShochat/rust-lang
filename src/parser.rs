@@ -2,7 +2,7 @@ use lexer::Token;
 
 use crate::token_kinds::{BinOp::*, Literal::*, TokenKind::*};
 use crate::token_kinds::TokenKind;
-use std::{fmt, vec};
+use std::fmt;
 use std::process::exit;
 use std::str::from_utf8;
 
@@ -16,7 +16,8 @@ pub enum AstTree {
   Num(Number),
   AstVarDec(VarDec),
   AstRawLLVM(RawLLVM),
-  AstIf(IfStatement)
+  AstIf(IfStatement),
+  AstVarSet(VarSet)
 }
 
 #[derive(Debug)]
@@ -40,6 +41,11 @@ pub struct IfStatement {
 
 pub struct RawLLVM {
   filename: &'static [u8]
+}
+
+pub struct VarSet {
+  name: &'static [u8],
+  value: Vec<AstTree>
 }
 
 pub struct VarDec {
@@ -251,7 +257,7 @@ impl Parser {
     }
     loop {
       if self.is_eoi() || self.first().kind == NewLine || self.first().kind == Semi {
-        self.bump();
+        // self.bump();
         return lhs
       } else if is_if_statement && self.first().kind == OpenBrace {
         return lhs
@@ -273,12 +279,25 @@ impl Parser {
     }
   }
 
+  fn assignment(&mut self) -> AstTree {
+    let n = self.first().val;
+    self.scope.is_in_scope(n); // TODO(ghostway):
+                                    // Should ensure that the type of the expression is correct.
+                                    // That can be achieved by returning the type of the expression
+                                    // from `self.parse_expression()`.
+    self.bump(); // eat ident
+    self.bump(); // eat '='
+
+    AstTree::AstVarSet(VarSet{name: n, value: vec![self.parse_expression(false, false)]})
+  }
+
   fn binary(&mut self, is_if_statement: bool) -> AstTree {
     let lhs = self.parse_expression(true, is_if_statement);
     self.parse_rhs(lhs, 0, is_if_statement)
   }
 
   fn parse_expression(&mut self, in_binary: bool, is_if_statement: bool) -> AstTree {
+    println!("{}", self.index);
     match self.first().kind {
       Ident => {
         if in_binary {
@@ -438,6 +457,7 @@ impl Parser {
     match self.first().kind {
       _ if is_type(self.first().keyword()) => Some(self.function_variable_dec()),
       _ if self.first().keyword() != Fail => Some(self.keyword_expr()),
+      _ if self.first().kind == Ident && self.second().kind == Eq => Some(self.assignment()),
       NewLine | Semi => {
         self.bump_line();
         self.bump();
