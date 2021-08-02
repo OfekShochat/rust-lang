@@ -398,7 +398,9 @@ impl Parser {
   }
 
   fn raw_llvm(&mut self) -> AstTree {
-    AstTree::AstRawLLVM(RawLLVM {filename: self.first().val})
+    let fname = self.first().val;
+    self.bump(); // eat filename
+    AstTree::AstRawLLVM(RawLLVM {filename: fname})
   }
 
   fn keyword_expr(&mut self, in_scope: bool) -> AstTree {
