@@ -11,7 +11,7 @@ mod parser_tests {
 
   #[test]
   #[should_panic]
-  fn multi_number_expression_fail() {
+  fn multi_number_expression_eoi() {
     let d = lexer::lex("1 + 2 * 3 / 3");
     parser::parse(d, "test2");
   }
@@ -71,6 +71,13 @@ mod parser_tests {
   fn scope() {
     let d = lexer::lex("{i32 a = 0;}");
     parser::parse(d, "test11");
+  }
+
+  #[test]
+  #[should_panic]
+  fn unclosed_scope() {
+    let d = lexer::lex("{i32 a = 0;");
+    parser::parse(d, "test12");
   }
 }
 
