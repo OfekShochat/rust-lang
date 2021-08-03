@@ -476,11 +476,15 @@ impl Parser {
       _ if is_type(self.first().keyword()) => Some(self.function_variable_dec()),
       _ if self.first().keyword() != Fail => Some(self.keyword_expr(in_function)),
       _ if self.first().kind == Ident && self.second().kind == Eq => Some(self.assignment()),
-      NewLine | Semi => {
+      NewLine => {
         self.bump_line();
         self.bump();
         None
       },
+      Semi => {
+        self.bump();
+        None
+      }
       Comment => {
         self.bump();
         None
