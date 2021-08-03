@@ -185,6 +185,9 @@ impl Lexer {
     let mut kind = Lit(IntLiteral);
     while Lexer::is_number(self.first()) && !self.is_eoi() {
       self.bump(1);
+      if self.is_eoi() {
+        break
+      }
       if self.first() == '.' {
         kind = Lit(FloatLiteral);
         self.bump(1)

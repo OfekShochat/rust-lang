@@ -253,6 +253,10 @@ impl Parser {
   }
 
   fn parse_rhs(&mut self, mut lhs: AstTree, this_prec: i8, is_if_statement: bool) -> AstTree {
+    if self.is_eoi() {
+      eprintln!("{}EOI encountered before end_of_expression indicator (;, \\n).", self.print_line());
+      panic!()
+    }
     if self.first().kind == NewLine || self.first().kind == Semi || (is_if_statement && self.first().kind == OpenBrace) {
       // there is only one number until end of the expression.
       return lhs
@@ -271,6 +275,11 @@ impl Parser {
         return lhs
       }
       self.bump(); // eat op
+
+      if self.is_eoi() || self.first().kind == NewLine || self.first().kind == Semi { // they forgot a end_of_expression indicator
+        eprintln!("{}expected an identifier or a number. Instead got {}.", self.print_line(), self.first().kind);
+        panic!()
+      }
 
       let mut rhs = self.parse_expression(true, is_if_statement);
       let next_prec = get_precedence(self.first().kind);
