@@ -43,54 +43,67 @@ mod parser_tests {
   }
 
   #[test]
+  fn constant_variable() {
+    let d = lexer::lex("const i32 a = 1 + 2;");
+    parser::parse(d, "test7");
+  }
+
+  #[test]
+  #[should_panic]
+  fn constant_variable_assign() {
+    let d = lexer::lex("const i32 a = 1 + 2; a = 1;");
+    parser::parse(d, "test7");
+  }
+
+  #[test]
   fn extern_llvm() {
     let d = lexer::lex("extern_llvm \"file.ll\"");
-    parser::parse(d, "test7");
+    parser::parse(d, "test8");
   }
 
   #[test]
   fn function_dec() {
     let d = lexer::lex("i32 main(i32 a, i32 b) {return a+b;}");
-    parser::parse(d, "test8");
+    parser::parse(d, "test9");
   }
 
   #[test]
   #[should_panic]
   fn return_in_if_statement() {
     let d = lexer::lex("if 1 > 2 {return 1;}");
-    parser::parse(d, "test9");
+    parser::parse(d, "test10");
   }
 
   #[test]
   fn if_statement() {
     let d = lexer::lex("if 1 > 2 {\ni32 d = 0\n}");
-    parser::parse(d, "test10");
+    parser::parse(d, "test11");
   }
 
   #[test]
   fn scope() {
     let d = lexer::lex("{i32 a = 0;}");
-    parser::parse(d, "test11");
+    parser::parse(d, "test12");
   }
 
   #[test]
   #[should_panic]
   fn unclosed_scope() {
     let d = lexer::lex("{i32 a = 0;");
-    parser::parse(d, "test12");
+    parser::parse(d, "test13");
   }
 
   #[test]
   fn expr_with_block_comment() {
     let d = lexer::lex("{i32 a = 0; /* comment comment */}");
-    parser::parse(d, "test13");
+    parser::parse(d, "test14");
   }
 
   #[test]
   #[should_panic]
   fn string() {
     let d = lexer::lex("\"test-test-123\"");
-    parser::parse(d, "test14");
+    parser::parse(d, "test15");
   }
 }
 

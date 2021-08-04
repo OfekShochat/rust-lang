@@ -3,6 +3,7 @@ use lexer::Token;
 use crate::token_kinds::{BinOp::*, Literal::*, TokenKind::*};
 use crate::token_kinds::TokenKind;
 use std::fmt;
+use std::ops::Index;
 use std::process::exit;
 use std::str::from_utf8;
 
@@ -20,7 +21,7 @@ pub enum AstTree {
   AstVarSet(VarSet)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Types {
   Int64,
   Int32,
@@ -52,6 +53,7 @@ pub struct VarDec {
   pub typ: Types,
   pub name: &'static [u8],
   val: Vec<AstTree>,
+  constant: bool
 }
 
 pub struct Number {
@@ -87,7 +89,8 @@ pub struct FunctionDec {
 struct Scope {
   subscope: Vec<Scope>,
   names: Vec<&'static [u8]>,
-  types: Vec<Types>
+  types: Vec<Types>,
+  constants: Vec<bool>
 }
 
 impl Scope {
@@ -98,9 +101,17 @@ impl Scope {
     self.names.contains(&name)
   }
 
+  pub fn get(&self, name: &'static [u8]) -> (Types, bool) {
+    if !self.subscope_empty() {
+      return self.subscope[0].get(name)
+    }
+    let index = self.names.iter().position(|&r| r == name).unwrap();
+    (self.types[index], self.constants[index])
+  }
+
   pub fn new_scope(&mut self) {
     if self.subscope_empty() {
-      self.subscope.push(Scope {subscope: vec![], names: vec![], types: vec![]})
+      self.subscope.push(Scope {subscope: vec![], names: vec![], types: vec![], constants: vec![]})
     } else {
       self.subscope[0].new_scope()
     }
@@ -110,12 +121,13 @@ impl Scope {
     self.subscope.len() == 0
   }
 
-  pub fn add(&mut self, name: &'static [u8], typ: Types) {
+  pub fn add(&mut self, name: &'static [u8], typ: Types, constant: bool) {
     if self.subscope_empty() {
       self.names.push(name);
-      self.types.push(typ)
+      self.types.push(typ);
+      self.constants.push(constant)
     } else {
-      self.subscope[0].add(name, typ)
+      self.subscope[0].add(name, typ, constant)
     }
   }
 
@@ -187,7 +199,7 @@ struct Parser {
 
 impl Parser {
   pub fn new(input_tokens: Vec<Token>, filename: &'static str) -> Parser {
-    Parser {input: input_tokens, scope: Scope {subscope: vec![], names: vec![], types: vec![]}, index: 0, line_num: 0, filename: filename}
+    Parser {input: input_tokens, scope: Scope {subscope: vec![], names: vec![], types: vec![], constants: vec![]}, index: 0, line_num: 0, filename: filename}
   }
 
   fn first(&self) -> Token {
@@ -216,7 +228,7 @@ impl Parser {
         (I32Type | I64Type | F32Type, Ident) => {
           let typ = self.first().keyword();
           params.push(Param {name: self.second().val, t: typ});
-          self.scope.add(self.second().val, tokentype_to_type(typ));
+          self.scope.add(self.second().val, tokentype_to_type(typ), false);
           self.bump()
         },
         (Comma, I32Type | I64Type | F32Type) => {
@@ -296,6 +308,11 @@ impl Parser {
                                     // Should ensure that the type of the expression is correct.
                                     // That can be achieved by returning the type of the expression
                                     // from `self.parse_expression()`.
+    let info = self.scope.get(n);
+    if info.1 {
+      eprintln!("{}{} is a constant and cannot be assigned to.", self.print_line(), from_utf8(n).unwrap());
+      panic!()
+    }
     self.bump(); // eat ident
     self.bump(); // eat '='
 
@@ -361,12 +378,12 @@ impl Parser {
       }
     }
 
-    self.scope.add(name, tokentype_to_type(t)); // recursion
+    self.scope.add(name, tokentype_to_type(t), true); // recursion
     let body = self.parse_scope(true);
     AstTree::AstFuncDec(FunctionDec {name: name, args: parameters, body: vec![body], returns: tokentype_to_type(t)})
   }
 
-  fn parse_var(&mut self) -> AstTree {
+  fn parse_var(&mut self, constant: bool) -> AstTree {
     let t = self.first().keyword();
     self.bump(); // eat type
 
@@ -385,15 +402,15 @@ impl Parser {
 
     let val = self.parse_expression(false, false);
 
-    self.scope.add(name, tokentype_to_type(t));
-    AstTree::AstVarDec(VarDec {typ: tokentype_to_type(t), name: name, val: vec![val]})
+    self.scope.add(name, tokentype_to_type(t), constant);
+    AstTree::AstVarDec(VarDec {typ: tokentype_to_type(t), name: name, val: vec![val], constant: constant})
   }
 
   fn function_variable_dec(&mut self) -> AstTree {
     if self.input[self.index + 2].kind == OpenParen {
       self.parse_function()
     } else if self.input[self.index + 2].kind == Eq {
-      self.parse_var()
+      self.parse_var(false)
     } else {
       eprintln!("{}Syntax Error: unexpected {} was encountered after identifier declaration (expected ';', '\\n', '=' or '(').", self.print_line(), self.input[self.index + 2].kind);
       panic!()
@@ -430,6 +447,10 @@ impl Parser {
         self.bump();
         self.raw_llvm()
       },
+      Const => {
+        self.bump();
+        self.parse_var(true)
+      }
       If => {
         self.bump();
         self.if_statement()
