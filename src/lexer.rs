@@ -315,9 +315,7 @@ impl Lexer {
     let tokind =
       match self.first() {
         '/' => self.slash(),
-        '"' => {
-          self.string()
-        },
+        '"' => self.string(),
         _c if Lexer::is_whitespace(self.first()) => self.whitespace(),
         _c if self.is_id_start() => self.ident(),
         _c @ '0'..='9' => self.number(),
