@@ -315,7 +315,9 @@ impl Lexer {
     let tokind =
       match self.first() {
         '/' => self.slash(),
-        '"' => self.string(),
+        '"' => {
+          self.string()
+        },
         _c if Lexer::is_whitespace(self.first()) => self.whitespace(),
         _c if self.is_id_start() => self.ident(),
         _c @ '0'..='9' => self.number(),
@@ -351,7 +353,13 @@ impl Lexer {
       self.bump(1)
     }
 
-    Token::new(tokind, &self.input[previous_index..self.index], self.index - previous_index)
+    // if its a string, remove quotes.
+    let value = match tokind {
+      Lit(StringLiteral) => &self.input[(previous_index + 1)..(self.index - 1)],
+      _ => &self.input[previous_index..self.index]
+    };
+
+    Token::new(tokind, value, self.index - previous_index)
   }
 }
 

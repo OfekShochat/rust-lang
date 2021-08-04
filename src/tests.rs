@@ -85,6 +85,13 @@ mod parser_tests {
     let d = lexer::lex("{i32 a = 0; /* comment comment */}");
     parser::parse(d, "test13");
   }
+
+  #[test]
+  #[should_panic]
+  fn string() {
+    let d = lexer::lex("\"test-test-123\"");
+    parser::parse(d, "test14");
+  }
 }
 
 // TODO(ghostway): codegen tests
