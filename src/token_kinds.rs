@@ -24,6 +24,7 @@ pub enum BinOp {
   NotEq, // '!='
   AndAnd, // '&&'
   OrOr, // '||'
+  As, // 'as'
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -47,6 +48,7 @@ pub enum TokenKind {
   /* - Features - */ // TODO(ghostway): find better name for this comment
   Dot, // '.' (Period, Full-Stop)
   DotDot, // '..' (Like python's Range)
+  DotDotDot,
   Comma, // ','
   Semi, // ';'
   Colon, // ':'
@@ -66,7 +68,6 @@ pub enum TokenKind {
 
   // Keywords
   While,
-  As,
   Break,
   Continue,
   If,

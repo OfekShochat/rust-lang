@@ -178,6 +178,7 @@ fn get_precedence(op: TokenKind) -> i8 {
     Bin(GEq) => 10,
     Bin(LEq) => 10,
     Bin(NotEq) => 10,
+    Bin(As) => 10,
     Bin(Add) => 20,
     Bin(Sub) => 20,
     Bin(Mul) => 30,

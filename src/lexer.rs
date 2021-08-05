@@ -84,7 +84,7 @@ impl Token {
   pub fn keyword(&mut self) -> TokenKind {
     match str::from_utf8(self.val).unwrap() {
       "while" => While,
-      "as" => As,
+      "as" => Bin(As),
       "break" => Break,
       "continue" => Continue,
       "if" => If,
@@ -306,6 +306,17 @@ impl Lexer {
     }
   }
 
+  fn dot(&mut self) -> TokenKind {
+    if self.second() == '.' {
+      if self.input[self.index + 3] as char == '.' {
+        return DotDotDot
+      }
+      DotDot
+    } else {
+      Dot
+    }
+  }
+
   pub fn is_eoi(&self) -> bool {
     self.index >= self.input.len()
   }
@@ -322,7 +333,6 @@ impl Lexer {
 
         ';' => Semi,
         ',' => Comma,
-        '.' => Dot,
         '(' => OpenParen,
         ')' => CloseParen,
         '{' => OpenBrace,
@@ -330,6 +340,7 @@ impl Lexer {
         '[' => OpenBracket,
         ']' => CloseBracket,
         '~' => Tilde,
+        '.' => self.dot(),
         ':' => self.colon(),
         '=' => self.eq(),
         '!' => self.not(),
