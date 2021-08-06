@@ -381,6 +381,5 @@ pub fn lex(input: &'static str) -> Vec<Token> {
       tokens.push(tok)
     }
   }
-
   tokens
 }
