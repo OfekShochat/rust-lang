@@ -1,7 +1,7 @@
 pub mod token_kinds;
 pub mod lexer;
 pub mod parser;
-mod llvm_backend;
+mod tests;
 
 use std::{str::from_utf8, time::Instant};
 
@@ -25,14 +25,13 @@ fn print_binop(e: BinExpresion, depth: i8) {
 
 fn main() {
   let now = Instant::now();
-  let d = lexer::lex("f32 a = 1.0; i32 e = a + 1 * 2; e = 1");
-  let p = parser::parse(d, "poop");
+  let d = lexer::lex("\"poop\"");
+  let p = parser::parse(d, "test");
   let elapsed = now.elapsed();
   for i in p {
     if let AstTree::AstFuncDec(i) = i {
       println!("functiondec name: {}", from_utf8(i.name).unwrap());
       println!("functiondec returns: {}", i.returns);
-      println!("{}", llvm_backend::emit_function(i));
     } else if let AstTree::Num(i) = i {
       println!("number: {}", from_utf8(i.val).unwrap())
     } else if let AstTree::AstBin(e) = i {
