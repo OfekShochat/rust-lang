@@ -20,7 +20,8 @@ pub enum AstTree {
   AstIfElse(IfElseStatement),
   AstVarSet(VarSet),
   AstForLoop(ForLoop),
-  AstKeyword(Keyword)
+  AstKeyword(Keyword),
+  AstWhileLoop(WhileLoop)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -55,6 +56,11 @@ pub struct IfElseStatement {
 
 pub struct ForLoop {
   for_info: Vec<AstTree>,
+  body: Vec<AstTree>
+}
+
+pub struct WhileLoop {
+  condition: Vec<AstTree>,
   body: Vec<AstTree>
 }
 
@@ -293,20 +299,20 @@ impl Parser {
     AstTree::AstFuncCall(FuncCall{ name: &recall_name, args: params })
   }
 
-  fn parse_rhs(&mut self, mut lhs: AstTree, this_prec: i8, is_if_statement: bool) -> AstTree {
+  fn parse_rhs(&mut self, mut lhs: AstTree, this_prec: i8, is_before_scope: bool) -> AstTree {
     if self.is_eoi() {
       eprintln!("{}EOI encountered before end_of_expression indicator (;, \\n).", self.print_line());
       panic!()
     }
-    if self.first().kind == NewLine || self.first().kind == Semi || (is_if_statement && self.first().kind == OpenBrace) {
+    if self.first().kind == NewLine || self.first().kind == Semi || (is_before_scope && self.first().kind == OpenBrace) {
       // there is only one number until end of the expression.
       return lhs
     }
+
     loop {
       if self.is_eoi() || self.first().kind == NewLine || self.first().kind == Semi {
-        // self.bump();
         return lhs
-      } else if is_if_statement && self.first().kind == OpenBrace {
+      } else if is_before_scope && self.first().kind == OpenBrace {
         return lhs
       }
 
@@ -322,10 +328,10 @@ impl Parser {
         panic!()
       }
 
-      let mut rhs = self.parse_expression(true, is_if_statement);
+      let mut rhs = self.parse_expression(true, is_before_scope);
       let next_prec = get_precedence(self.first().kind);
       if prec < next_prec {
-        rhs = self.parse_rhs(rhs, prec + 1, is_if_statement)
+        rhs = self.parse_rhs(rhs, prec + 1, is_before_scope)
       }
       lhs = AstTree::AstBin(BinExpresion {params: vec![lhs, rhs], inst: op})
     }
@@ -348,18 +354,18 @@ impl Parser {
     AstTree::AstVarSet(VarSet{name: n, value: vec![self.parse_expression(false, false)]})
   }
 
-  fn binary(&mut self, is_if_statement: bool) -> AstTree {
-    let lhs = self.parse_expression(true, is_if_statement);
-    self.parse_rhs(lhs, 0, is_if_statement)
+  fn binary(&mut self, is_before_scope: bool) -> AstTree {
+    let lhs = self.parse_expression(true, is_before_scope);
+    self.parse_rhs(lhs, 0, is_before_scope)
   }
 
-  fn parse_expression(&mut self, in_binary: bool, is_if_statement: bool) -> AstTree {
+  fn parse_expression(&mut self, in_binary: bool, is_before_scope: bool) -> AstTree {
     match self.first().kind {
       Ident => {
         if in_binary {
           self.function_variable_recall()
         } else {
-          let b = self.binary(is_if_statement);
+          let b = self.binary(is_before_scope);
           self.bump();
           b
         }
@@ -370,7 +376,7 @@ impl Parser {
           self.bump();
           n
         } else {
-          let b = self.binary(is_if_statement);
+          let b = self.binary(is_before_scope);
           self.bump();
           b
         }
@@ -476,6 +482,14 @@ impl Parser {
     AstTree::AstForLoop(ForLoop {for_info: vec![initializer, condition, after], body: vec![self.parse_scope(false)]})
   }
 
+  fn while_loop(&mut self) -> AstTree {
+    let condition = self.parse_expression(false, true);
+    self.index -= 1; // parse_expression is also eating '{'
+    println!("{}", from_utf8(self.first().val).unwrap());
+    self.scope.new_scope();
+    AstTree::AstWhileLoop(WhileLoop {condition: vec![condition], body: vec![self.parse_scope(false)]})
+  }
+
   fn keyword_expr(&mut self, in_function: bool) -> AstTree {
     let k = self.first().keyword();
     match k {
@@ -488,6 +502,10 @@ impl Parser {
           panic!()
         }
       },
+      While => {
+        self.bump();
+        self.while_loop()
+      }
       LLVM => {
         self.bump();
         self.raw_llvm()

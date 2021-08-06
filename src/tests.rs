@@ -127,6 +127,12 @@ mod parser_tests {
       let d = lexer::lex("for i32 poop = 1; poop > 4; poop += 1; {}");
       parser::parse(d, "c");
     }
+
+    #[test]
+    fn while_loop() {
+      let d = lexer::lex("i32 poop = 0;while poop < 3 { poop += 1; }");
+      parser::parse(d, "d");
+    }
   }
 
   mod general {
