@@ -111,6 +111,12 @@ mod parser_tests {
     let d = lexer::lex("\"test-test-123\"");
     parser::parse(d, "test15");
   }
+
+  #[test]
+  fn for_loop() {
+    let d = lexer::lex("for 4 + 1; 2 > 5; 7 + 75; {}");
+    parser::parse(d, "test15");
+  }
 }
 
 // TODO(ghostway): codegen tests

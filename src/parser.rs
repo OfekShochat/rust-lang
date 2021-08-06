@@ -18,7 +18,8 @@ pub enum AstTree {
   AstRawLLVM(RawLLVM),
   AstIf(IfStatement),
   AstIfElse(IfElseStatement),
-  AstVarSet(VarSet)
+  AstVarSet(VarSet),
+  AstForLoop(ForLoop)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -44,6 +45,11 @@ pub struct IfElseStatement {
   expr: Vec<AstTree>,
   ifbody: Vec<AstTree>,
   elsebody: Vec<AstTree>
+}
+
+pub struct ForLoop {
+  for_info: Vec<AstTree>,
+  body: Vec<AstTree>
 }
 
 pub struct RawLLVM {
@@ -184,6 +190,7 @@ fn get_precedence(op: TokenKind) -> i8 {
     Bin(Lt) => 10,
     Bin(GEq) => 10,
     Bin(LEq) => 10,
+    Bin(DEq) => 10,
     Bin(NotEq) => 10,
     Bin(As) => 10,
     Bin(Add) => 20,
@@ -446,6 +453,18 @@ impl Parser {
     AstTree::AstRawLLVM(RawLLVM {filename: fname})
   }
 
+  fn for_loop(&mut self) -> AstTree {
+    println!("{}", from_utf8(self.first().val).unwrap());
+    let initializer = self.parse_expression(false, false);
+    println!("{}", from_utf8(self.first().val).unwrap());
+    let condition = self.parse_expression(false, false);
+    println!("{}", from_utf8(self.first().val).unwrap());
+    let after = self.parse_expression(false, false);
+    println!("{}", from_utf8(self.first().val).unwrap());
+    self.scope.new_scope();
+    AstTree::AstForLoop(ForLoop {for_info: vec![initializer, condition, after], body: vec![self.parse_scope(false)]})
+  }
+
   fn keyword_expr(&mut self, in_function: bool) -> AstTree {
     match self.first().keyword() {
       Return => {
@@ -469,6 +488,10 @@ impl Parser {
         self.bump();
         self.if_statement()
       },
+      For => {
+        self.bump();
+        self.for_loop()
+      }
       _ => {
         eprintln!("this should never happen.");
         panic!()
