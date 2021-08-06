@@ -92,7 +92,7 @@ impl Token {
       "true" => True,
       "false" => False,
       "for" => For,
-      "switch" => Switch,
+      "match" => Switch,
       "const" => Const,
       "return" => Return,
       "extern_llvm" => LLVM,
@@ -236,6 +236,9 @@ impl Lexer {
     if self.second() == '=' {
       self.bump(2);
       Bin(DEq)
+    } else if self.second() == '>' {
+      self.bump(2);
+      FatRArrow
     } else {
       Eq
     }

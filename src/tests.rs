@@ -103,6 +103,12 @@ mod parser_tests {
       let d = lexer::lex("if 1 > 2 {\ni32 d = 0\n} else {i32 a = 1;}");
       parser::parse(d, "d");
     }
+
+    #[test]
+    fn switch_statement() {
+      let d = lexer::lex("match 324 {4 => {}}");
+      parser::parse(d, "e");
+    }
   }
 
   mod scoped {
