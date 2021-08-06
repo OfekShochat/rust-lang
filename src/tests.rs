@@ -124,7 +124,7 @@ mod parser_tests {
 
     #[test]
     fn for_loop() {
-      let d = lexer::lex("for 4 == 1; 2 > 5; 7 + 75; {}");
+      let d = lexer::lex("for i32 poop = 1; poop > 4; poop += 1; {}");
       parser::parse(d, "c");
     }
   }
