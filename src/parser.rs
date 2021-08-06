@@ -301,16 +301,13 @@ impl Parser {
         return lhs
       }
       self.bump(); // eat op
-      println!("aa{}", self.first().kind);
 
       if self.is_eoi() || self.first().kind == NewLine || self.first().kind == Semi { // they forgot a end_of_expression indicator
         eprintln!("{}expected an identifier or a number. Instead got {}.", self.print_line(), self.first().kind);
         panic!()
       }
 
-      println!("fdsfs{}", self.first().kind);
       let mut rhs = self.parse_expression(true, is_if_statement);
-      println!("poop");
       let next_prec = get_precedence(self.first().kind);
       if prec < next_prec {
         rhs = self.parse_rhs(rhs, prec + 1, is_if_statement)
@@ -457,15 +454,9 @@ impl Parser {
   }
 
   fn for_loop(&mut self) -> AstTree {
-    println!("{}", from_utf8(self.first().val).unwrap());
-    println!("{}", self.second().kind);
-    println!("{}", self.input[self.index + 3].kind);
     let initializer = self.parse_expression(false, false);
-    println!("{}", from_utf8(self.first().val).unwrap());
     let condition = self.parse_expression(false, false);
-    println!("{}", from_utf8(self.first().val).unwrap());
     let after = self.parse_expression(false, false);
-    println!("{}", from_utf8(self.first().val).unwrap());
     self.scope.new_scope();
     AstTree::AstForLoop(ForLoop {for_info: vec![initializer, condition, after], body: vec![self.parse_scope(false)]})
   }
