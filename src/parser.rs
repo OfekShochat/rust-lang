@@ -17,6 +17,7 @@ pub enum AstTree {
   AstVarDec(VarDec),
   AstRawLLVM(RawLLVM),
   AstIf(IfStatement),
+  AstIfElse(IfElseStatement),
   AstVarSet(VarSet)
 }
 
@@ -37,6 +38,12 @@ impl fmt::Display for Types {
 pub struct IfStatement {
   expr: Vec<AstTree>,
   body: Vec<AstTree>
+}
+
+pub struct IfElseStatement {
+  expr: Vec<AstTree>,
+  ifbody: Vec<AstTree>,
+  elsebody: Vec<AstTree>
 }
 
 pub struct RawLLVM {
@@ -423,7 +430,14 @@ impl Parser {
     self.scope.new_scope();
     let body = self.parse_scope(false);
 
-    AstTree::AstIf(IfStatement{expr: vec![expr], body: vec![body]})
+    if !self.is_eoi() && self.first().keyword() == Else {
+      self.scope.new_scope();
+      self.bump();
+      let elsebody = self.parse_scope(false);
+      AstTree::AstIfElse(IfElseStatement{expr: vec![expr], ifbody: vec![body], elsebody: vec![elsebody]})
+    } else {
+      AstTree::AstIf(IfStatement{expr: vec![expr], body: vec![body]})
+    }
   }
 
   fn raw_llvm(&mut self) -> AstTree {

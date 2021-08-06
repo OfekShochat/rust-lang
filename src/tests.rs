@@ -81,6 +81,12 @@ mod parser_tests {
   }
 
   #[test]
+  fn ifelse_statement() {
+    let d = lexer::lex("if 1 > 2 {\ni32 d = 0\n} else {i32 a = 1;}");
+    parser::parse(d, "test11");
+  }
+
+  #[test]
   fn scope() {
     let d = lexer::lex("{i32 a = 0;}");
     parser::parse(d, "test12");
