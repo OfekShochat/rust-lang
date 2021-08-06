@@ -105,6 +105,12 @@ mod parser_tests {
     }
 
     #[test]
+    fn multi_case_switch_statement() {
+      let d = lexer::lex("match 324 {4 => {}, 5 => {}}");
+      parser::parse(d, "e");
+    }
+
+    #[test]
     fn switch_statement() {
       let d = lexer::lex("match 324 {4 => {}}");
       parser::parse(d, "e");

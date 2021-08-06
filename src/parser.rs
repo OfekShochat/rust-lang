@@ -526,6 +526,12 @@ impl Parser {
       self.scope.new_scope();
       let body = self.parse_scope(in_function);
       nodes.push(AstTree::AstCase(SwitchCase {expr: vec![case], body: vec![body]}));
+      if self.first().kind == Comma {
+        self.bump()
+      } else if self.first().kind != CloseBrace {
+        eprintln!("{}expected ',' or '}}' after case body. got {}", self.print_line(), self.first().kind);
+        panic!()
+      }
     }
     if self.is_eoi() {
       eprintln!("{}EOI was encountered before scope was closed.", self.print_line());
