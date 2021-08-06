@@ -197,6 +197,10 @@ fn get_precedence(op: TokenKind) -> i8 {
     Bin(GEq) => 10,
     Bin(LEq) => 10,
     Bin(DEq) => 10,
+    AddEq => 10,
+    SubEq => 10,
+    MulEq => 10,
+    DivEq => 10,
     Bin(NotEq) => 10,
     Bin(As) => 10,
     Bin(Add) => 20,
@@ -465,7 +469,7 @@ impl Parser {
   }
 
   fn for_loop(&mut self) -> AstTree {
-    let initializer = self.parse_expression(false, false);
+    let initializer = self.parse_var(false);
     let condition = self.parse_expression(false, false);
     let after = self.parse_expression(false, false);
     self.scope.new_scope();
