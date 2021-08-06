@@ -226,6 +226,7 @@ impl Lexer {
 
   fn colon(&mut self) -> TokenKind {
     if self.second() == ':' {
+      self.bump(2);
       ColonColon
     } else {
       Colon
@@ -234,6 +235,7 @@ impl Lexer {
 
   fn eq(&mut self) -> TokenKind {
     if self.second() == '=' {
+      self.bump(2);
       Bin(DEq)
     } else {
       Eq
@@ -242,6 +244,7 @@ impl Lexer {
 
   fn not(&mut self) -> TokenKind {
     if self.second() == '=' {
+      self.bump(2);
       Bin(NotEq)
     } else {
       Not
@@ -250,6 +253,7 @@ impl Lexer {
 
   fn lt(&mut self) -> TokenKind {
     if self.second() == '=' {
+      self.bump(2);
       Bin(LEq)
     } else {
       Bin(Lt)
@@ -258,6 +262,7 @@ impl Lexer {
 
   fn gt(&mut self) -> TokenKind {
     if self.second() == '=' {
+      self.bump(2);
       Bin(GEq)
     } else {
       Bin(Gt)
@@ -266,6 +271,7 @@ impl Lexer {
 
   fn and(&mut self) -> TokenKind {
     if self.second() == '&' {
+      self.bump(2);
       Bin(AndAnd)
     } else {
       eprintln!("found an alone '&'");
@@ -275,6 +281,7 @@ impl Lexer {
 
   fn or(&mut self) -> TokenKind {
     if self.second() == '|' {
+      self.bump(2);
       Bin(OrOr)
     } else {
       eprintln!("found an alone '|'");
@@ -284,6 +291,7 @@ impl Lexer {
 
   fn sub(&mut self) -> TokenKind {
     if self.second() == '=' {
+      self.bump(2);
       SubEq
     } else {
       Bin(Sub)
@@ -292,6 +300,7 @@ impl Lexer {
 
   fn add(&mut self) -> TokenKind {
     if self.second() == '=' {
+      self.bump(2);
       AddEq
     } else {
       Bin(Add)
@@ -300,6 +309,7 @@ impl Lexer {
 
   fn mul(&mut self) -> TokenKind {
     if self.second() == '=' {
+      self.bump(2);
       MulEq
     } else {
       Bin(Mul)
@@ -309,8 +319,10 @@ impl Lexer {
   fn dot(&mut self) -> TokenKind {
     if self.second() == '.' {
       if self.input[self.index + 3] as char == '.' {
+        self.bump(3);
         return DotDotDot
       }
+      self.bump(2);
       DotDot
     } else {
       Dot
