@@ -92,7 +92,6 @@ impl Token {
       "true" => True,
       "false" => False,
       "for" => For,
-      "in" => In,
       "switch" => Switch,
       "const" => Const,
       "return" => Return,

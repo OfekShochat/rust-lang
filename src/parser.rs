@@ -485,7 +485,6 @@ impl Parser {
   fn while_loop(&mut self) -> AstTree {
     let condition = self.parse_expression(false, true);
     self.index -= 1; // parse_expression is also eating '{'
-    println!("{}", from_utf8(self.first().val).unwrap());
     self.scope.new_scope();
     AstTree::AstWhileLoop(WhileLoop {condition: vec![condition], body: vec![self.parse_scope(false)]})
   }
