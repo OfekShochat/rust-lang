@@ -1,9 +1,8 @@
 [package]
 name = "none"
-RUST_BACKTRACE=1
 version = "0.0.0"
+RUST_BACKTRACE=1
 authors = ["Ofek Shochat"]
 license = "poop"
 
 [dependencies]
-llvm-sys = "*"
