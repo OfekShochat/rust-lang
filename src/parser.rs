@@ -19,7 +19,8 @@ pub enum AstTree {
   AstIf(IfStatement),
   AstIfElse(IfElseStatement),
   AstVarSet(VarSet),
-  AstForLoop(ForLoop)
+  AstForLoop(ForLoop),
+  AstKeyword(Keyword)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -27,6 +28,7 @@ pub enum Types {
   Int64,
   Int32,
   F32,
+  Struct,
   Fail
 }
 
@@ -34,6 +36,10 @@ impl fmt::Display for Types {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     write!(f, "{:?}", self)
   }
+}
+
+pub struct Keyword {
+  kind: TokenKind
 }
 
 pub struct IfStatement {
@@ -260,6 +266,11 @@ impl Parser {
   }
 
   fn function_variable_recall(&mut self) -> AstTree {
+    let k = self.first().keyword();
+    if k == True || k == False {
+      self.bump();
+      return AstTree::AstKeyword(Keyword {kind: self.first().keyword()})
+    }
     let recall_name = self.first().val;
     self.bump(); // eat identifier
     if !self.scope.is_in_scope(recall_name) {
@@ -462,7 +473,8 @@ impl Parser {
   }
 
   fn keyword_expr(&mut self, in_function: bool) -> AstTree {
-    match self.first().keyword() {
+    let k = self.first().keyword();
+    match k {
       Return => {
         if in_function {
           self.bump();
@@ -487,7 +499,11 @@ impl Parser {
       For => {
         self.bump();
         self.for_loop()
-      }
+      },
+      Break | Continue | True | False => {
+        self.bump();
+        AstTree::AstKeyword(Keyword {kind: k})
+      },
       _ => {
         eprintln!("this should never happen.");
         panic!()
