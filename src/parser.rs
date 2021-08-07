@@ -3,6 +3,7 @@ use lexer::Token;
 use crate::token_kinds::{BinOp::*, Literal::*, TokenKind::*};
 use crate::token_kinds::TokenKind;
 use std::fmt;
+use std::panic::PanicInfo;
 use std::process::exit;
 use std::str::from_utf8;
 
@@ -24,7 +25,8 @@ pub enum AstTree {
   AstWhileLoop(WhileLoop),
   AstSwitch(SwitchStatement),
   AstString(StringLit),
-  AstCase(SwitchCase)
+  AstCase(SwitchCase),
+  AstStructDef(StructDef)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -32,7 +34,7 @@ pub enum Types {
   Int64,
   Int32,
   F32,
-  Struct,
+  StructType,
   Fail
 }
 
@@ -74,6 +76,11 @@ pub struct ForLoop {
 pub struct WhileLoop {
   condition: Vec<AstTree>,
   body: Vec<AstTree>
+}
+
+pub struct StructDef {
+  params: Vec<Param>,
+  name: &'static [u8]
 }
 
 pub struct RawLLVM {
@@ -261,13 +268,10 @@ impl Parser {
     self.index += 1;
   }
 
-  fn parse_function_params(&mut self) -> Vec<Param> {
+  fn parse_params(&mut self, stop: TokenKind) -> Vec<Param> {
     let mut params = vec![];
-    if self.first().kind != OpenParen {
-      panic!("Syntax Error: Didn't find '(' after function name");
-    }
     self.bump();
-    while self.first().kind != CloseParen {
+    while self.first().kind != stop {
       if self.first().kind == Comma {
         self.bump()
       }
@@ -289,7 +293,16 @@ impl Parser {
       }
       self.bump()
     }
+    self.bump(); // skip stop token
     params
+  }
+
+  fn parse_function_params(&mut self) -> Vec<Param> {
+    if self.first().kind != OpenParen {
+      eprintln!("{}expected '(' after function name. got {}", self.print_line(), self.first().kind);
+      panic!()
+    }
+    self.parse_params(CloseParen)
   }
 
   fn function_variable_recall(&mut self) -> AstTree {
@@ -425,7 +438,6 @@ impl Parser {
     self.bump();
     self.scope.new_scope();
     let parameters = self.parse_function_params();
-    self.bump();
 
     #[cfg(debug_assertions)] {
       println!("function type: {}", t);
@@ -526,6 +538,12 @@ impl Parser {
       self.scope.new_scope();
       let body = self.parse_scope(in_function);
       nodes.push(AstTree::AstCase(SwitchCase {expr: vec![case], body: vec![body]}));
+      if self.first().kind == Comma {
+        self.bump()
+      } else if self.first().kind != CloseBrace {
+        eprintln!("{}expected ',' or '}}' after case body. got {}", self.print_line(), self.first().kind);
+        panic!()
+      }
     }
     if self.is_eoi() {
       eprintln!("{}EOI was encountered before scope was closed.", self.print_line());
@@ -538,6 +556,25 @@ impl Parser {
   fn switch_statement(&mut self, in_function: bool) -> AstTree {
     let expr = self.parse_expression(true, true);
     AstTree::AstSwitch(SwitchStatement {expr: vec![expr], cases: self.parse_switch_body(in_function)})
+  }
+
+  fn parse_struct_params(&mut self) -> Vec<Param> {
+    if self.first().kind != OpenBrace {
+      eprintln!("{}expected '{{' after struct name. got {}", self.print_line(), self.first().kind);
+      panic!()
+    }
+    self.parse_params(CloseBrace)
+  }
+
+  fn parse_struct(&mut self) -> AstTree {
+    let name = self.first().val;
+    if self.first().keyword() != Fail {
+      eprintln!("{}You should not use the language keywords for struct names.", self.print_line());
+      panic!()
+    }
+    self.bump();
+    self.scope.add(name, Types::StructType, true);
+    AstTree::AstStructDef(StructDef { params: self.parse_struct_params(), name: name})
   }
 
   fn keyword_expr(&mut self, in_function: bool) -> AstTree {
@@ -579,7 +616,11 @@ impl Parser {
       Switch => {
         self.bump();
         self.switch_statement(in_function)
-      }
+      },
+      Struct => {
+        self.bump();
+        self.parse_struct()
+      },
       _ => {
         eprintln!("this should never happen.");
         panic!()

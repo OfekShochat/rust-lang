@@ -71,6 +71,12 @@ mod parser_tests {
       let d = lexer::lex("const i32 a = 1 + 2; a = 1;");
       parser::parse(d, "e");
     }
+
+    #[test]
+    fn struct_def() {
+      let d = lexer::lex("struct poop {i32 a, i32 b}");
+      parser::parse(d, "f");
+    }
   }
 
   mod statements {
@@ -102,6 +108,12 @@ mod parser_tests {
     fn ifelse_statement() {
       let d = lexer::lex("if 1 > 2 {\ni32 d = 0\n} else {i32 a = 1;}");
       parser::parse(d, "d");
+    }
+
+    #[test]
+    fn multi_case_switch_statement() {
+      let d = lexer::lex("match 324 {4 => {}, 5 => {}}");
+      parser::parse(d, "e");
     }
 
     #[test]

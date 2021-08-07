@@ -80,6 +80,7 @@ pub enum TokenKind {
   Const,
   Return,
   LLVM,
+  Struct,
 
   Name,
   Comment,

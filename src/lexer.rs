@@ -96,6 +96,7 @@ impl Token {
       "const" => Const,
       "return" => Return,
       "extern_llvm" => LLVM,
+      "struct" => Struct,
       "i32" => I32Type,
       "i64" => I64Type,
       "f32" => F32Type,
