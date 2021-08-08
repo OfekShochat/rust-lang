@@ -112,7 +112,14 @@ mod parser_tests {
 
     #[test]
     fn multi_case_switch_statement() {
-      let d = lexer::lex("match 324 {4 => {}, 5 => {}}");
+      let d = lexer::lex("match 324 {4 => {}, 5 => {}, 7 => {}}");
+      parser::parse(d, "e");
+    }
+
+    #[test]
+    #[should_panic]
+    fn misplaced_continue_in_switch() {
+      let d = lexer::lex("match 324 {4 => {}, 5 => {}, 7 => {continue;}}");
       parser::parse(d, "e");
     }
 

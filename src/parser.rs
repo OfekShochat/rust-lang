@@ -447,7 +447,7 @@ impl Parser {
     }
 
     self.scope.add(name, tokentype_to_type(t), true); // recursion
-    let body = self.parse_scope(true);
+    let body = self.parse_scope(true, false);
     AstTree::AstFuncDec(FunctionDec {name: name, args: parameters, body: vec![body], returns: tokentype_to_type(t)})
   }
 
@@ -485,16 +485,16 @@ impl Parser {
     }
   }
 
-  fn if_statement(&mut self) -> AstTree {
+  fn if_statement(&mut self, in_loop: bool) -> AstTree {
     let expr = self.parse_expression(false, true);
     self.index -= 1; // parse_expression is also eating '{'
     self.scope.new_scope();
-    let body = self.parse_scope(false);
+    let body = self.parse_scope(false, in_loop);
 
     if !self.is_eoi() && self.first().keyword() == Else {
       self.scope.new_scope();
       self.bump();
-      let elsebody = self.parse_scope(false);
+      let elsebody = self.parse_scope(false, in_loop);
       AstTree::AstIfElse(IfElseStatement{expr: vec![expr], ifbody: vec![body], elsebody: vec![elsebody]})
     } else {
       AstTree::AstIf(IfStatement{expr: vec![expr], body: vec![body]})
@@ -512,21 +512,20 @@ impl Parser {
     let condition = self.parse_expression(false, false);
     let after = self.parse_expression(false, false);
     self.scope.new_scope();
-    AstTree::AstForLoop(ForLoop {for_info: vec![initializer, condition, after], body: vec![self.parse_scope(false)]})
+    AstTree::AstForLoop(ForLoop {for_info: vec![initializer, condition, after], body: vec![self.parse_scope(false, true)]})
   }
 
   fn while_loop(&mut self) -> AstTree {
     let condition = self.parse_expression(false, true);
     self.index -= 1; // parse_expression is also eating '{'
     self.scope.new_scope();
-    AstTree::AstWhileLoop(WhileLoop {condition: vec![condition], body: vec![self.parse_scope(false)]})
+    AstTree::AstWhileLoop(WhileLoop {condition: vec![condition], body: vec![self.parse_scope(false, true)]})
   }
 
-  fn parse_switch_body(&mut self, in_function: bool) -> Vec<AstTree> {
+  fn parse_switch_body(&mut self, in_function: bool, in_loop: bool) -> Vec<AstTree> {
     let mut nodes = vec![];
     self.bump(); // eat '{'
     while !self.is_eoi() && self.first().kind != CloseBrace {
-      println!("{}", self.first().kind);
       let case = self.parse_expression(true, true);
       if self.first().kind != FatRArrow {
         eprintln!("{}expected '=>' after case. got {}", self.print_line(), self.first().kind);
@@ -535,7 +534,7 @@ impl Parser {
 
       self.bump(); // eat '=>'
       self.scope.new_scope();
-      let body = self.parse_scope(in_function);
+      let body = self.parse_scope(in_function, in_loop);
       nodes.push(AstTree::AstCase(SwitchCase {expr: vec![case], body: vec![body]}));
       if self.first().kind == Comma {
         self.bump()
@@ -552,9 +551,9 @@ impl Parser {
     nodes
   }
 
-  fn switch_statement(&mut self, in_function: bool) -> AstTree {
+  fn switch_statement(&mut self, in_function: bool, in_loop: bool) -> AstTree {
     let expr = self.parse_expression(true, true);
-    AstTree::AstSwitch(SwitchStatement {expr: vec![expr], cases: self.parse_switch_body(in_function)})
+    AstTree::AstSwitch(SwitchStatement {expr: vec![expr], cases: self.parse_switch_body(in_function, in_loop)})
   }
 
   fn parse_struct_params(&mut self) -> Vec<Param> {
@@ -576,7 +575,7 @@ impl Parser {
     AstTree::AstStructDef(StructDef { params: self.parse_struct_params(), name: name})
   }
 
-  fn keyword_expr(&mut self, in_function: bool) -> AstTree {
+  fn keyword_expr(&mut self, in_function: bool, in_loop: bool) -> AstTree {
     let k = self.first().keyword();
     match k {
       Return => {
@@ -602,19 +601,27 @@ impl Parser {
       },
       If => {
         self.bump();
-        self.if_statement()
+        self.if_statement(in_loop)
       },
       For => {
         self.bump();
         self.for_loop()
       },
-      Break | Continue | True | False => {
+      Break | Continue => {
+        if !in_loop {
+          eprintln!("{}{} used without a loop.", self.print_line(), self.first().kind);
+          panic!()
+        }
+        self.bump();
+        AstTree::AstKeyword(Keyword {kind: k})
+      },
+      True | False => {
         self.bump();
         AstTree::AstKeyword(Keyword {kind: k})
       },
       Switch => {
         self.bump();
-        self.switch_statement(in_function)
+        self.switch_statement(in_function, in_loop)
       },
       Struct => {
         self.bump();
@@ -627,11 +634,11 @@ impl Parser {
     }
   }
 
-  fn parse_scope(&mut self, before_scope: bool) -> AstTree {
+  fn parse_scope(&mut self, before_scope: bool, in_loop: bool) -> AstTree {
     let mut nodes = vec![];
     self.bump(); // eat '{'
     while !self.is_eoi() && self.first().kind != CloseBrace {
-      let n = self.advance(before_scope);
+      let n = self.advance(before_scope, in_loop);
       if !n.is_none() {
         nodes.push(n.unwrap())
       }
@@ -657,10 +664,10 @@ impl Parser {
     self.index >= self.input.len()
   }
 
-  pub fn advance(&mut self, in_function: bool) -> Option<AstTree> {
+  pub fn advance(&mut self, in_function: bool, in_loop: bool) -> Option<AstTree> {
     match self.first().kind {
       _ if is_type(self.first().keyword()) => Some(self.function_variable_dec()),
-      _ if self.first().keyword() != Fail => Some(self.keyword_expr(in_function)),
+      _ if self.first().keyword() != Fail => Some(self.keyword_expr(in_function, in_loop)),
       _ if self.first().kind == Ident && self.second().kind == Eq => Some(self.assignment()),
       NewLine => {
         self.bump_line();
@@ -677,7 +684,7 @@ impl Parser {
       },
       OpenBrace => {
         self.scope.new_scope();
-        Some(self.parse_scope(in_function))
+        Some(self.parse_scope(in_function, in_loop))
       },
       Lit(IntLiteral) | Lit(FloatLiteral) | Ident => Some(self.parse_expression(false, false)),
       _ => {
@@ -692,7 +699,7 @@ pub fn parse(input: Vec<Token>, filename: &'static str) -> Vec<AstTree> {
   let mut nodes = vec![];
   let mut parser = Parser::new(input, filename);
   while !parser.is_eoi() {
-    let n = parser.advance(false);
+    let n = parser.advance(false, false);
     if n.is_none() {
       continue
     } else {

@@ -25,7 +25,7 @@ fn print_binop(e: BinExpresion, depth: i8) {
 
 fn main() {
   let now = Instant::now();
-  let d = lexer::lex("{i32 a = 0; /* comment comment */}");
+  let d = lexer::lex("match 324 {4 => {}, 5 => {}, 7 => {continue;}}");
   let p = parser::parse(d, "test");
   let elapsed = now.elapsed();
   for i in p {
