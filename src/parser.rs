@@ -133,11 +133,17 @@ pub struct FunctionDec {
   pub returns: Types
 }
 
+#[derive(Clone, Copy)]
+struct ScopeEntryInfo {
+  function: bool,
+  typ: Types,
+  constant: bool
+}
+
 struct Scope {
   subscope: Vec<Scope>,
   names: Vec<&'static [u8]>,
-  types: Vec<Types>,
-  constants: Vec<bool>
+  info: Vec<ScopeEntryInfo>
 }
 
 impl Scope {
@@ -148,17 +154,17 @@ impl Scope {
     self.names.contains(&name)
   }
 
-  pub fn get(&self, name: &'static [u8]) -> (Types, bool) {
+  pub fn get(&self, name: &'static [u8]) -> ScopeEntryInfo {
     if !self.subscope_empty() {
       return self.subscope[0].get(name)
     }
     let index = self.names.iter().position(|&r| r == name).unwrap();
-    (self.types[index], self.constants[index])
+    self.info[index]
   }
 
   pub fn new_scope(&mut self) {
     if self.subscope_empty() {
-      self.subscope.push(Scope {subscope: vec![], names: vec![], types: vec![], constants: vec![]})
+      self.subscope.push(Scope {subscope: vec![], names: vec![], info: vec![]})
     } else {
       self.subscope[0].new_scope()
     }
@@ -168,13 +174,12 @@ impl Scope {
     self.subscope.len() == 0
   }
 
-  pub fn add(&mut self, name: &'static [u8], typ: Types, constant: bool) {
+  pub fn add(&mut self, name: &'static [u8], typ: Types, constant: bool, function: bool) {
     if self.subscope_empty() {
       self.names.push(name);
-      self.types.push(typ);
-      self.constants.push(constant)
+      self.info.push(ScopeEntryInfo {function: function, typ: typ, constant: constant})
     } else {
-      self.subscope[0].add(name, typ, constant)
+      self.subscope[0].add(name, typ, constant, function)
     }
   }
 
@@ -253,7 +258,7 @@ struct Parser {
 
 impl Parser {
   pub fn new(input_tokens: Vec<Token>, filename: &'static str) -> Parser {
-    Parser {input: input_tokens, scope: Scope {subscope: vec![], names: vec![], types: vec![], constants: vec![]}, index: 0, line_num: 1, line_index: 0, filename: filename}
+    Parser {input: input_tokens, scope: Scope {subscope: vec![], names: vec![], info: vec![]}, index: 0, line_num: 1, line_index: 0, filename: filename}
   }
 
   fn first(&self) -> Token {
@@ -280,7 +285,7 @@ impl Parser {
         (I32Type | I64Type | F32Type, Ident) => {
           let typ = self.first().keyword();
           params.push(Param {name: self.second().val, t: typ});
-          self.scope.add(self.second().val, tokentype_to_type(typ), false);
+          self.scope.add(self.second().val, tokentype_to_type(typ), false, false);
           self.bump()
         },
         (Comma, I32Type | I64Type | F32Type) => {
@@ -375,7 +380,7 @@ impl Parser {
                                     // That can be achieved by returning the type of the expression
                                     // from `self.parse_expression()`.
     let info = self.scope.get(n);
-    if info.1 {
+    if info.constant {
       eprintln!("{}{} is a constant and cannot be assigned to.", self.print_line(), from_utf8(n).unwrap());
       panic!()
     }
@@ -453,7 +458,7 @@ impl Parser {
       }
     }
 
-    self.scope.add(name, tokentype_to_type(t), true); // recursion
+    self.scope.add(name, tokentype_to_type(t), true, true); // recursion
     let body = self.parse_scope(true, false);
     AstTree::AstFuncDec(FunctionDec {name: name, args: parameters, body: vec![body], returns: tokentype_to_type(t)})
   }
@@ -477,7 +482,7 @@ impl Parser {
 
     let val = self.parse_expression(false, false);
 
-    self.scope.add(name, tokentype_to_type(t), constant);
+    self.scope.add(name, tokentype_to_type(t), constant, false);
     AstTree::AstVarDec(VarDec {typ: tokentype_to_type(t), name: name, val: vec![val], constant: constant})
   }
 
@@ -578,7 +583,7 @@ impl Parser {
       panic!()
     }
     self.bump();
-    self.scope.add(name, Types::StructType, true);
+    self.scope.add(name, Types::StructType, true, false);
     AstTree::AstStructDef(StructDef { params: self.parse_struct_params(), name: name})
   }
 
