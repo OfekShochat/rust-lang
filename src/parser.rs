@@ -253,7 +253,7 @@ struct Parser {
 
 impl Parser {
   pub fn new(input_tokens: Vec<Token>, filename: &'static str) -> Parser {
-    Parser {input: input_tokens, scope: Scope {subscope: vec![], names: vec![], types: vec![], constants: vec![]}, index: 0, line_num: 0, line_index: 0, filename: filename}
+    Parser {input: input_tokens, scope: Scope {subscope: vec![], names: vec![], types: vec![], constants: vec![]}, index: 0, line_num: 1, line_index: 0, filename: filename}
   }
 
   fn first(&self) -> Token {
