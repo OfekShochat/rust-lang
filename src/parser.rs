@@ -3,7 +3,6 @@ use lexer::Token;
 use crate::token_kinds::{BinOp::*, Literal::*, TokenKind::*};
 use crate::token_kinds::TokenKind;
 use std::fmt;
-use std::hash::Hash;
 use std::process::exit;
 use std::str::from_utf8;
 use std::collections::HashMap;
