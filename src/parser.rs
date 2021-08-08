@@ -3,8 +3,10 @@ use lexer::Token;
 use crate::token_kinds::{BinOp::*, Literal::*, TokenKind::*};
 use crate::token_kinds::TokenKind;
 use std::fmt;
+use std::hash::Hash;
 use std::process::exit;
 use std::str::from_utf8;
+use std::collections::HashMap;
 
 pub enum AstTree {
   AstFuncDec(FunctionDec),
@@ -142,8 +144,7 @@ struct ScopeEntryInfo {
 
 struct Scope {
   subscope: Vec<Scope>,
-  names: Vec<&'static [u8]>,
-  info: Vec<ScopeEntryInfo>
+  info: HashMap<&'static [u8], ScopeEntryInfo>
 }
 
 impl Scope {
@@ -151,20 +152,34 @@ impl Scope {
     if !self.subscope_empty() && self.subscope[0].is_in_scope(name) {
       return true
     }
-    self.names.contains(&name)
+    match self.info.get(&name) {
+      Some(_) => true,
+      _ => false
+    }
   }
 
-  pub fn get(&self, name: &'static [u8]) -> ScopeEntryInfo {
-    if !self.subscope_empty() {
-      return self.subscope[0].get(name)
+  pub fn get(&self, name: &'static [u8]) -> Option<&ScopeEntryInfo> {
+    if self.subscope_empty() {
+      match self.info.get(&name) {
+        Some(info) => Some(info),
+        _ => None
+      }
+    } else {
+      let entry = self.subscope[0].get(name);
+      if entry.is_none() {
+        match self.info.get(&name) {
+          Some(info) => Some(info),
+          _ => None
+        }
+      } else {
+        entry
+      }
     }
-    let index = self.names.iter().position(|&r| r == name).unwrap();
-    self.info[index]
   }
 
   pub fn new_scope(&mut self) {
     if self.subscope_empty() {
-      self.subscope.push(Scope {subscope: vec![], names: vec![], info: vec![]})
+      self.subscope.push(Scope {subscope: vec![], info: HashMap::new()})
     } else {
       self.subscope[0].new_scope()
     }
@@ -176,8 +191,7 @@ impl Scope {
 
   pub fn add(&mut self, name: &'static [u8], typ: Types, constant: bool, function: bool) {
     if self.subscope_empty() {
-      self.names.push(name);
-      self.info.push(ScopeEntryInfo {function: function, typ: typ, constant: constant})
+      self.info.insert(name, ScopeEntryInfo {function: function, typ: typ, constant: constant});
     } else {
       self.subscope[0].add(name, typ, constant, function)
     }
@@ -258,7 +272,7 @@ struct Parser {
 
 impl Parser {
   pub fn new(input_tokens: Vec<Token>, filename: &'static str) -> Parser {
-    Parser {input: input_tokens, scope: Scope {subscope: vec![], names: vec![], info: vec![]}, index: 0, line_num: 1, line_index: 0, filename: filename}
+    Parser {input: input_tokens, scope: Scope {subscope: vec![], info: HashMap::new()}, index: 0, line_num: 1, line_index: 0, filename: filename}
   }
 
   fn first(&self) -> Token {
@@ -293,7 +307,7 @@ impl Parser {
           self.bump()
         },
         _ => {
-          eprintln!("{}'{}' is not a type or '{}' is not an identifier.", self.print_line(), from_utf8(self.first().val).unwrap(), from_utf8(self.second().val).unwrap());
+          eprintln!("{} '{}' is not a type or '{}' is not an identifier.", self.get_debug_line(), from_utf8(self.first().val).unwrap(), from_utf8(self.second().val).unwrap());
           panic!();
         }
       }
@@ -305,7 +319,7 @@ impl Parser {
 
   fn parse_function_params(&mut self) -> Vec<Param> {
     if self.first().kind != OpenParen {
-      eprintln!("{}expected '(' after function name. got {}", self.print_line(), self.first().kind);
+      eprintln!("{} expected '(' after function name. got {}", self.get_debug_line(), self.first().kind);
       panic!()
     }
     self.parse_params(CloseParen)
@@ -320,10 +334,13 @@ impl Parser {
     let recall_name = self.first().val;
     self.bump(); // eat identifier
     if !self.scope.is_in_scope(recall_name) {
-      eprintln!("{}{} is not yet defined.", self.print_line(), from_utf8(recall_name).unwrap());
+      eprintln!("{} {} is not yet defined.", self.get_debug_line(), from_utf8(recall_name).unwrap());
       panic!()
     }
     if self.first().kind != OpenParen {
+      if self.scope.get(recall_name).unwrap().function {
+        eprintln!("{} WARNING: you are getting a function without calling it.", self.get_debug_line())
+      }
       return AstTree::AstVarCall(VarCall{name: recall_name})
     }
     self.bump(); // eat '('
@@ -337,7 +354,7 @@ impl Parser {
 
   fn parse_rhs(&mut self, mut lhs: AstTree, this_prec: i8, is_before_scope: bool) -> AstTree {
     if self.is_eoi() {
-      eprintln!("{}EOI encountered before end_of_expression indicator (;, \\n).", self.print_line());
+      eprintln!("{} EOI encountered before end_of_expression indicator (;, \\n).", self.get_debug_line());
       panic!()
     }
     if self.first().kind == NewLine || self.first().kind == Semi || (is_before_scope && self.first().kind == OpenBrace) {
@@ -360,7 +377,7 @@ impl Parser {
       self.bump(); // eat op
 
       if self.is_eoi() || self.first().kind == NewLine || self.first().kind == Semi { // they forgot a end_of_expression indicator
-        eprintln!("{}expected an identifier or a number. Instead got {}.", self.print_line(), self.first().kind);
+        eprintln!("{} expected an identifier or a number. Instead got {}.", self.get_debug_line(), self.first().kind);
         panic!()
       }
 
@@ -380,8 +397,8 @@ impl Parser {
                                     // That can be achieved by returning the type of the expression
                                     // from `self.parse_expression()`.
     let info = self.scope.get(n);
-    if info.constant {
-      eprintln!("{}{} is a constant and cannot be assigned to.", self.print_line(), from_utf8(n).unwrap());
+    if info.unwrap().constant {
+      eprintln!("{} {} is a constant and cannot be assigned to.", self.get_debug_line(), from_utf8(n).unwrap());
       panic!()
     }
     self.bump(); // eat ident
@@ -428,7 +445,7 @@ impl Parser {
         self.parse_expression(in_binary, is_before_scope)
       }
       _ => {
-        eprintln!("{}didn't find expression with {}.", self.print_line(), self.first().kind);
+        eprintln!("{} didn't find expression with {}.", self.get_debug_line(), self.first().kind);
         panic!()
       }
     }
@@ -438,11 +455,11 @@ impl Parser {
     let t = self.first().keyword(); // already verified in `self.advance()`
     let name = self.second().val;
     if self.second().kind != Ident {
-      eprintln!("{}{} is {}, not an identifier.", self.print_line(), from_utf8(name).unwrap(), self.second().kind);
+      eprintln!("{} {} is {}, not an identifier.", self.get_debug_line(), from_utf8(name).unwrap(), self.second().kind);
       panic!()
     }
     if self.second().keyword() != Fail {
-      eprintln!("{}You should not use the language keywords for function names", self.print_line());
+      eprintln!("{} You should not use the language keywords for function names", self.get_debug_line());
       panic!()
     }
     self.bump();
@@ -469,12 +486,12 @@ impl Parser {
 
     let name = self.first().val;
     if from_utf8(name).unwrap() == "main" {
-      eprintln!("{}don't use 'main' as a variable name. it is the entrypoint to the program.", self.print_line());
+      eprintln!("{} don't use 'main' as a variable name. it is the entrypoint to the program.", self.get_debug_line());
       panic!()
     } 
 
     if self.first().kind != Ident {
-      eprintln!("{}{} is {}, not an identifier.", self.print_line(), from_utf8(name).unwrap(), self.second().kind);
+      eprintln!("{} {} is {}, not an identifier.", self.get_debug_line(), from_utf8(name).unwrap(), self.second().kind);
       panic!()
     }
     self.bump(); // eat name
@@ -492,7 +509,7 @@ impl Parser {
     } else if self.input[self.index + 2].kind == Eq {
       self.parse_var(false)
     } else {
-      eprintln!("{}Syntax Error: unexpected {} was encountered after identifier declaration (expected ';', '\\n', '=' or '(').", self.print_line(), self.input[self.index + 2].kind);
+      eprintln!("{} unexpected {} was encountered after identifier declaration (expected ';', '\\n', '=' or '(').", self.get_debug_line(), self.input[self.index + 2].kind);
       panic!()
     }
   }
@@ -540,7 +557,7 @@ impl Parser {
     while !self.is_eoi() && self.first().kind != CloseBrace {
       let case = self.parse_expression(true, true);
       if self.first().kind != FatRArrow {
-        eprintln!("{}expected '=>' after case. got {}", self.print_line(), self.first().kind);
+        eprintln!("{} expected '=>' after case. got {}", self.get_debug_line(), self.first().kind);
         panic!()
       }
 
@@ -551,12 +568,12 @@ impl Parser {
       if self.first().kind == Comma {
         self.bump()
       } else if self.first().kind != CloseBrace {
-        eprintln!("{}expected ',' or '}}' after case body. got {}", self.print_line(), self.first().kind);
+        eprintln!("{} expected ',' or '}}' after case body. got {}", self.get_debug_line(), self.first().kind);
         panic!()
       }
     }
     if self.is_eoi() {
-      eprintln!("{}EOI was encountered before scope was closed.", self.print_line());
+      eprintln!("{} EOI was encountered before scope was closed.", self.get_debug_line());
       panic!()
     }
     self.bump(); // eat '}'
@@ -570,7 +587,7 @@ impl Parser {
 
   fn parse_struct_params(&mut self) -> Vec<Param> {
     if self.first().kind != OpenBrace {
-      eprintln!("{}expected '{{' after struct name. got {}", self.print_line(), self.first().kind);
+      eprintln!("{} expected '{{' after struct name. got {}", self.get_debug_line(), self.first().kind);
       panic!()
     }
     self.parse_params(CloseBrace)
@@ -579,7 +596,7 @@ impl Parser {
   fn parse_struct(&mut self) -> AstTree {
     let name = self.first().val;
     if self.first().keyword() != Fail {
-      eprintln!("{}You should not use the language keywords for struct names.", self.print_line());
+      eprintln!("{} You should not use the language keywords for struct names.", self.get_debug_line());
       panic!()
     }
     self.bump();
@@ -621,7 +638,7 @@ impl Parser {
       },
       Break | Continue => {
         if !in_loop {
-          eprintln!("{}{} used without a loop.", self.print_line(), self.first().keyword());
+          eprintln!("{} {} used without a loop.", self.get_debug_line(), self.first().keyword());
           panic!()
         }
         self.bump();
@@ -656,7 +673,7 @@ impl Parser {
       }
     }
     if self.is_eoi() {
-      eprintln!("{}EOI was encountered before scope was closed.", self.print_line());
+      eprintln!("{} EOI was encountered before scope was closed.", self.get_debug_line());
       panic!()
     }
     self.bump(); // eat '}'
@@ -669,8 +686,8 @@ impl Parser {
     self.line_num += 1
   }
 
-  fn print_line(&self) -> String {
-    format!("{}:{}:{}: ", self.filename, self.line_num, self.line_index)
+  fn get_debug_line(&self) -> String {
+    format!("{}:{}:{}:", self.filename, self.line_num, self.line_index)
   }
 
   pub fn is_eoi(&self) -> bool {
@@ -701,7 +718,7 @@ impl Parser {
       },
       Lit(IntLiteral) | Lit(FloatLiteral) | Ident => Some(self.parse_expression(false, false)),
       _ => {
-        eprintln!("{}unexpected token {}", self.print_line(), self.first().kind);
+        eprintln!("{} unexpected token {}", self.get_debug_line(), self.first().kind);
         panic!()
       }
     }
