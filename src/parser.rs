@@ -247,12 +247,13 @@ struct Parser {
 
   // debug info
   line_num: usize,
+  line_index: usize,
   filename: &'static str
 }
 
 impl Parser {
   pub fn new(input_tokens: Vec<Token>, filename: &'static str) -> Parser {
-    Parser {input: input_tokens, scope: Scope {subscope: vec![], names: vec![], types: vec![], constants: vec![]}, index: 0, line_num: 0, filename: filename}
+    Parser {input: input_tokens, scope: Scope {subscope: vec![], names: vec![], types: vec![], constants: vec![]}, index: 0, line_num: 0, line_index: 0, filename: filename}
   }
 
   fn first(&self) -> Token {
@@ -264,6 +265,7 @@ impl Parser {
   }
 
   fn bump(&mut self) {
+    self.line_index += self.first().length;
     self.index += 1;
   }
 
@@ -414,6 +416,11 @@ impl Parser {
         let s = AstTree::AstString(StringLit {val: self.first().val});
         self.bump();
         s
+      },
+      NewLine => {
+        self.bump();
+        self.bump_line();
+        self.parse_expression(in_binary, is_before_scope)
       }
       _ => {
         eprintln!("{}didn't find expression with {}.", self.print_line(), self.first().kind);
@@ -609,7 +616,7 @@ impl Parser {
       },
       Break | Continue => {
         if !in_loop {
-          eprintln!("{}{} used without a loop.", self.print_line(), self.first().kind);
+          eprintln!("{}{} used without a loop.", self.print_line(), self.first().keyword());
           panic!()
         }
         self.bump();
@@ -653,11 +660,12 @@ impl Parser {
   }
 
   fn bump_line(&mut self) {
+    self.line_index = 0;
     self.line_num += 1
   }
 
   fn print_line(&self) -> String {
-    format!("{}:{}: ", self.filename, self.line_num)
+    format!("{}:{}:{}: ", self.filename, self.line_num, self.line_index)
   }
 
   pub fn is_eoi(&self) -> bool {
