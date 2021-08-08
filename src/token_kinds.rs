@@ -95,6 +95,7 @@ pub enum TokenKind {
   I32Type,
   I64Type,
   F32Type,
+  VoidType,
 
   Fail
 }
