@@ -28,6 +28,7 @@ pub enum AstTree {
   AstString(StringLit),
   AstCase(SwitchCase),
   AstStructDef(StructDef),
+  AttributeRecall(GetAttribute)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -67,6 +68,11 @@ pub struct IfElseStatement {
 pub struct SwitchCase {
   expr: Rc<AstTree>,
   body: Vec<AstTree>,
+}
+
+pub struct GetAttribute {
+  name: &'static [u8],
+  attribute: Rc<AstTree>
 }
 
 pub struct ForLoop {
@@ -147,6 +153,7 @@ struct ScopeEntryInfo {
 struct Scope {
   subscope: Vec<Scope>,
   info: HashMap<&'static [u8], ScopeEntryInfo>,
+  attribute_info: HashMap<&'static [u8], Vec<&'static [u8]>>
 }
 
 impl Scope {
@@ -179,11 +186,16 @@ impl Scope {
     }
   }
 
+  pub fn check_attribute(&mut self, name: &'static [u8], attribute: &'static [u8]) -> bool {
+    self.attribute_info.get(name).unwrap().contains(&attribute)
+  }
+
   pub fn new_scope(&mut self) {
     if self.subscope_empty() {
       self.subscope.push(Scope {
         subscope: vec![],
         info: HashMap::new(),
+        attribute_info: HashMap::new()
       })
     } else {
       self.subscope[0].new_scope()
@@ -193,6 +205,8 @@ impl Scope {
   pub fn subscope_empty(&self) -> bool {
     self.subscope.len() == 0
   }
+
+  // TODO(ghostway): fn add_attribute
 
   pub fn add(&mut self, name: &'static [u8], typ: Types, constant: bool, function: bool) {
     if self.subscope_empty() {
@@ -204,6 +218,7 @@ impl Scope {
           constant: constant,
         },
       );
+      self.attribute_info.insert(name, vec![]);
     } else {
       self.subscope[0].add(name, typ, constant, function)
     }
@@ -287,6 +302,7 @@ impl Parser {
       scope: Scope {
         subscope: vec![],
         info: HashMap::new(),
+        attribute_info: HashMap::new()
       },
       index: 0,
       line_num: 1,
@@ -481,10 +497,35 @@ impl Parser {
     self.parse_rhs(lhs, 0, is_before_scope)
   }
 
+  fn ident_attribute(&mut self) -> AstTree {
+    let name = self.first().val;
+    self.bump(); // eat ident
+    self.bump(); // eat '.'
+    let attribute = self.first().val;
+    self.bump(); // eat attribute
+
+    if !self.scope.is_in_scope(name) {
+      eprintln!(
+        "{} {} is not yet defined.",
+        self.get_debug_line(),
+        from_utf8(name).unwrap()
+      );
+      panic!()
+    }
+    if !self.scope.check_attribute(name, attribute) {
+      eprintln!("{} {} doesn't have attribute {}.", self.get_debug_line(), from_utf8(name).unwrap(), from_utf8(attribute).unwrap());
+      panic!()
+    }
+    self.index -= 1; // function_variable_recall needs to see the name of the ident
+    AstTree::AttributeRecall(GetAttribute {name: name, attribute: Rc::new(self.function_variable_recall())})
+  }
+
   fn parse_expression(&mut self, in_binary: bool, is_before_scope: bool) -> AstTree {
     match self.first().kind {
       Ident => {
-        if in_binary {
+        if self.second().kind == Dot {
+          self.ident_attribute()
+        } else if in_binary {
           self.function_variable_recall()
         } else {
           let b = self.binary(is_before_scope);
