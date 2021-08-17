@@ -7,15 +7,20 @@ use std::str;
 
 #[derive(Clone, Copy)]
 pub struct Token {
-  pub kind:    TokenKind,
+  pub kind: TokenKind,
   pub val: &'static [u8],
   pub length: usize,
-  pub start: usize
+  pub start: usize,
 }
 
 impl Token {
   pub fn new(kind: TokenKind, val: &'static [u8], length: usize, start: usize) -> Token {
-    Token {kind: kind, val: val, length: length, start: start}
+    Token {
+      kind: kind,
+      val: val,
+      length: length,
+      start: start,
+    }
   }
 
   pub fn keyword(&mut self) -> TokenKind {
@@ -37,19 +42,22 @@ impl Token {
       "i32" => I32Type,
       "i64" => I64Type,
       "f32" => F32Type,
-      _ => Fail
+      _ => Fail,
     }
   }
 }
 
 struct Lexer {
   input: &'static [u8],
-  index: usize
+  index: usize,
 }
 
 impl Lexer {
   pub fn new(input_string: &'static str) -> Lexer {
-    Lexer {input: input_string.as_bytes(), index: 0}
+    Lexer {
+      input: input_string.as_bytes(),
+      index: 0,
+    }
   }
 
   fn bump(&mut self, with: usize) {
@@ -83,14 +91,11 @@ impl Lexer {
   }
 
   fn slash(&mut self) -> TokenKind {
-    let kind = 
-      match self.second() {
-        '*' => {
-          self.block_comment()
-        },
-        '/' => self.line_comment(),
-        _ => Bin(Div)
-      };
+    let kind = match self.second() {
+      '*' => self.block_comment(),
+      '/' => self.line_comment(),
+      _ => Bin(Div),
+    };
 
     kind
   }
@@ -123,7 +128,7 @@ impl Lexer {
     while Lexer::is_number(self.first()) && !self.is_eoi() {
       self.bump(1);
       if self.is_eoi() {
-        break
+        break;
       }
       if self.first() == '.' {
         kind = Lit(FloatLiteral);
@@ -135,13 +140,7 @@ impl Lexer {
   }
 
   fn is_whitespace(c: char) -> bool {
-    matches!(
-      c,
-      ' '
-      | '\t'
-      | '\r'
-      | '\u{000B}'
-    )
+    matches!(c, ' ' | '\t' | '\r' | '\u{000B}')
   }
 
   fn whitespace(&mut self) -> TokenKind {
@@ -260,7 +259,7 @@ impl Lexer {
     if self.second() == '.' {
       if self.input[self.index + 3] as char == '.' {
         self.bump(3);
-        return DotDotDot
+        return DotDotDot;
       }
       self.bump(2);
       DotDot
@@ -275,41 +274,39 @@ impl Lexer {
 
   pub fn advance(&mut self) -> Token {
     let previous_index: usize = self.index;
-    let tokind =
-      match self.first() {
-        '/' => self.slash(),
-        '"' => self.string(),
-        _c if Lexer::is_whitespace(self.first()) => self.whitespace(),
-        _c if self.is_id_start() => self.ident(),
-        _c @ '0'..='9' => self.number(),
+    let tokind = match self.first() {
+      '/' => self.slash(),
+      '"' => self.string(),
+      _c if Lexer::is_whitespace(self.first()) => self.whitespace(),
+      _c if self.is_id_start() => self.ident(),
+      _c @ '0'..='9' => self.number(),
 
-        ';' => Semi,
-        ',' => Comma,
-        '(' => OpenParen,
-        ')' => CloseParen,
-        '{' => OpenBrace,
-        '}' => CloseBrace,
-        '[' => OpenBracket,
-        ']' => CloseBracket,
-        '~' => Tilde,
-        '.' => self.dot(),
-        ':' => self.colon(),
-        '=' => self.eq(),
-        '!' => self.not(),
-        '<' => self.lt(),
-        '>' => self.gt(),
-        '-' => self.sub(),
-        '&' => self.and(),
-        '|' => self.or(),
-        '+' => self.add(),
-        '*' => self.mul(),
-        '%' => Bin(Percent),
-        '\n' => NewLine,
+      ';' => Semi,
+      ',' => Comma,
+      '(' => OpenParen,
+      ')' => CloseParen,
+      '{' => OpenBrace,
+      '}' => CloseBrace,
+      '[' => OpenBracket,
+      ']' => CloseBracket,
+      '~' => Tilde,
+      '.' => self.dot(),
+      ':' => self.colon(),
+      '=' => self.eq(),
+      '!' => self.not(),
+      '<' => self.lt(),
+      '>' => self.gt(),
+      '-' => self.sub(),
+      '&' => self.and(),
+      '|' => self.or(),
+      '+' => self.add(),
+      '*' => self.mul(),
+      '%' => Bin(Percent),
+      '\n' => NewLine,
 
-        //'#' => self.preprocess(),
-
-        _ => panic!("TokenType not found")
-      };
+      //'#' => self.preprocess(),
+      _ => panic!("TokenType not found"),
+    };
     if self.index == previous_index {
       self.bump(1)
     }
@@ -317,7 +314,7 @@ impl Lexer {
     // if its a string, remove quotes.
     let value = match tokind {
       Lit(StringLiteral) => &self.input[(previous_index + 1)..(self.index - 1)],
-      _ => &self.input[previous_index..self.index]
+      _ => &self.input[previous_index..self.index],
     };
 
     Token::new(tokind, value, self.index - previous_index, previous_index)

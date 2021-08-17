@@ -1,7 +1,7 @@
-pub mod token_kinds;
 pub mod lexer;
 pub mod parser;
 mod tests;
+pub mod token_kinds;
 
 use std::{str::from_utf8, time::Instant};
 
@@ -15,7 +15,7 @@ fn print_binop(e: BinExpresion, depth: i8) {
     if let AstTree::Num(i) = &a {
       println!("bin param: {}", from_utf8(i.val).unwrap())
     } else if let AstTree::AstBin(i) = a {
-      print_binop(i, depth+1);
+      print_binop(i, depth + 1);
     } else if let AstTree::AstVarCall(i) = a {
       println!("bin param var: {}", from_utf8(i.name).unwrap());
     }
@@ -25,10 +25,12 @@ fn print_binop(e: BinExpresion, depth: i8) {
 
 fn main() {
   let now = Instant::now();
-  let d = lexer::lex("i32 main() {
+  let d = lexer::lex(
+    "i32 main() {
     i32 a = 0;
     a = 1;
-  }");
+  }",
+  );
   let p = parser::parse(d, "./file.test");
   let elapsed = now.elapsed();
   for i in p {

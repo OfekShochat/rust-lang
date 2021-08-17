@@ -6,36 +6,36 @@ pub enum Literal {
   IntLiteral,
   FloatLiteral,
   CharLiteral,
-  StringLiteral
+  StringLiteral,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum BinOp {
-  Add, // '+'
-  Sub, // '-'
-  Mul, // '*'
-  Div, // '/'
+  Add,     // '+'
+  Sub,     // '-'
+  Mul,     // '*'
+  Div,     // '/'
   Percent, // '%'
-  Gt, // '>' (Greater Than)
-  Lt, // '<' (Less Than)
-  DEq, // '=='
-  LEq, // '<='
-  GEq, // '>='
-  NotEq, // '!='
-  AndAnd, // '&&'
-  OrOr, // '||'
-  As, // 'as'
+  Gt,      // '>' (Greater Than)
+  Lt,      // '<' (Less Than)
+  DEq,     // '=='
+  LEq,     // '<='
+  GEq,     // '>='
+  NotEq,   // '!='
+  AndAnd,  // '&&'
+  OrOr,    // '||'
+  As,      // 'as'
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum TokenKind {
   /* - Expresion operators - */
-  Eq, // '='
-  Not, // '!'
+  Eq,    // '='
+  Not,   // '!'
   Tilde, // '~' (Wiggle)
   Bin(BinOp),
   And, // '&'
-  Or, // '|'
+  Or,  // '|'
   // Equal-Binary operators Example: '+='
   AddEq, // '+='
   SubEq, // '-='
@@ -43,28 +43,27 @@ pub enum TokenKind {
   DivEq, // '/='
   // *(Maybe Add) AndEq, // '&='
   // *(Maybe Add) OrEq, // '|='
-  
 
   /* - Features - */ // TODO(ghostway): find better name for this comment
-  Dot, // '.' (Period, Full-Stop)
+  Dot,    // '.' (Period, Full-Stop)
   DotDot, // '..' (Like python's Range)
   DotDotDot,
-  Comma, // ','
-  Semi, // ';'
-  Colon, // ':'
+  Comma,      // ','
+  Semi,       // ';'
+  Colon,      // ':'
   ColonColon, // '::'
-  RArrow, // '->'
-  FatRArrow, // '=>'
-  Quote, // "'"
+  RArrow,     // '->'
+  FatRArrow,  // '=>'
+  Quote,      // "'"
 
   // delims
-  OpenParen, // '('
-  CloseParen, // ')'
-  OpenBrace, // '{'
-  CloseBrace, // '}'
-  OpenBracket, // '['
+  OpenParen,    // '('
+  CloseParen,   // ')'
+  OpenBrace,    // '{'
+  CloseBrace,   // '}'
+  OpenBracket,  // '['
   CloseBracket, // ']
-  EmptyDelim, // null
+  EmptyDelim,   // null
 
   // Keywords
   While,
@@ -97,7 +96,7 @@ pub enum TokenKind {
   F32Type,
   VoidType,
 
-  Fail
+  Fail,
 }
 
 impl fmt::Display for TokenKind {
