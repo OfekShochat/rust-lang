@@ -51,7 +51,7 @@ pub struct Keyword {
 
 pub struct IfStatement {
   expr: Rc<AstTree>,
-  body: Vec<AstTree>
+  body: Rc<AstTree>
 }
 
 pub struct StringLit {
@@ -60,8 +60,8 @@ pub struct StringLit {
 
 pub struct IfElseStatement {
   expr: Rc<AstTree>,
-  ifbody: Vec<AstTree>,
-  elsebody: Vec<AstTree>
+  ifbody: Rc<AstTree>,
+  elsebody: Rc<AstTree>
 }
 
 pub struct SwitchCase {
@@ -70,13 +70,15 @@ pub struct SwitchCase {
 }
 
 pub struct ForLoop {
-  for_info: Vec<AstTree>,
-  body: Vec<AstTree>
+  init: Rc<AstTree>,
+  condition: Rc<AstTree>,
+  end: Rc<AstTree>,
+  body: Rc<AstTree>
 }
 
 pub struct WhileLoop {
   condition: Rc<AstTree>,
-  body: Vec<AstTree>
+  body: Rc<AstTree>
 }
 
 pub struct StructDef {
@@ -131,7 +133,7 @@ pub struct BinExpresion {
 pub struct FunctionDec {
   pub name: &'static [u8],
   pub args: Vec<Param>,
-  pub body: Vec<AstTree>,
+  pub body: Rc<AstTree>,
   pub returns: Types
 }
 
@@ -477,7 +479,7 @@ impl Parser {
 
     self.scope.add(name, tokentype_to_type(t), true, true); // recursion
     let body = self.parse_scope(true, false);
-    AstTree::AstFuncDec(FunctionDec {name: name, args: parameters, body: vec![body], returns: tokentype_to_type(t)})
+    AstTree::AstFuncDec(FunctionDec {name: name, args: parameters, body: Rc::new(body), returns: tokentype_to_type(t)})
   }
 
   fn parse_var(&mut self, constant: bool) -> AstTree {
@@ -524,9 +526,9 @@ impl Parser {
       self.scope.new_scope();
       self.bump();
       let elsebody = self.parse_scope(false, in_loop);
-      AstTree::AstIfElse(IfElseStatement{expr: Rc::new(expr), ifbody: vec![body], elsebody: vec![elsebody]})
+      AstTree::AstIfElse(IfElseStatement{expr: Rc::new(expr), ifbody: Rc::new(body), elsebody: Rc::new(elsebody) })
     } else {
-      AstTree::AstIf(IfStatement{expr: Rc::new(expr), body: vec![body]})
+      AstTree::AstIf(IfStatement{expr: Rc::new(expr), body: Rc::new(body)})
     }
   }
 
@@ -541,14 +543,14 @@ impl Parser {
     let condition = self.parse_expression(false, false);
     let after = self.parse_expression(false, false);
     self.scope.new_scope();
-    AstTree::AstForLoop(ForLoop {for_info: vec![initializer, condition, after], body: vec![self.parse_scope(false, true)]})
+    AstTree::AstForLoop(ForLoop {init: Rc::new(initializer), condition: Rc::new(condition), end: Rc::new(after), body: Rc::new(self.parse_scope(false, true))})
   }
 
   fn while_loop(&mut self) -> AstTree {
     let condition = self.parse_expression(false, true);
     self.index -= 1; // parse_expression is also eating '{'
     self.scope.new_scope();
-    AstTree::AstWhileLoop(WhileLoop {condition: Rc::new(condition), body: vec![self.parse_scope(false, true)]})
+    AstTree::AstWhileLoop(WhileLoop {condition: Rc::new(condition), body: Rc::new(self.parse_scope(false, true))})
   }
 
   fn parse_switch_body(&mut self, in_function: bool, in_loop: bool) -> Vec<AstTree> {
