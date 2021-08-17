@@ -9,76 +9,13 @@ use std::str;
 pub struct Token {
   pub kind:    TokenKind,
   pub val: &'static [u8],
-  pub length: usize
+  pub length: usize,
+  pub start: usize
 }
 
 impl Token {
-  pub fn new(kind: TokenKind, val: &'static [u8], length: usize) -> Token {
-    Token {kind: kind, val: val, length: length}
-  }
-
-  pub fn combine_tokens(&self, tok: Token) -> TokenKind {
-    match self.kind {
-      Eq => match tok.kind {
-        Eq => Bin(DEq),
-        Bin(Gt) => FatRArrow,
-        _ => Fail
-      },
-      Bin(Lt) => match tok.kind {
-        Eq => Bin(LEq),
-        _ => Fail
-      },
-      Bin(Gt) => match tok.kind {
-        Eq => Bin(GEq),
-        _ => Fail
-      },
-      Not => match tok.kind {
-        Eq => Bin(NotEq),
-        _ => Fail
-      },
-      Bin(Add) => match tok.kind {
-        Eq => AddEq,
-        _ => Fail
-      },
-      Bin(Sub) => match tok.kind {
-        Eq => SubEq,
-        _ => Fail
-      },
-      Bin(Mul) => match tok.kind {
-        Eq => MulEq,
-        _ => Fail
-      },
-      Bin(Div) => match tok.kind {
-        Eq => DivEq,
-        _ => Fail
-      },
-      Dot => match tok.kind {
-        Dot => DotDot,
-        _ => Fail
-      },
-      Colon => match tok.kind {
-        Colon => ColonColon,
-        _ => Fail
-      },
-      _ => self.kind
-    }
-  }
-
-  pub fn split(&mut self) -> (TokenKind, TokenKind) {
-    match self.kind {
-      Bin(DEq) => (Eq, Eq),
-      Bin(NotEq) => (Not, Eq),
-      Bin(AndAnd) => (And, And),
-      ColonColon => (Colon, Colon),
-      Bin(OrOr) => (Or, Or),
-      RArrow => (Bin(Sub), Bin(Gt)),
-      FatRArrow => (Eq, Bin(Gt)),
-      AddEq => (Bin(Add), Eq),
-      SubEq => (Bin(Sub), Eq),
-      MulEq => (Bin(Mul), Eq),
-      DivEq => (Bin(Div), Eq),
-      _ => (Fail, Fail)
-    }
+  pub fn new(kind: TokenKind, val: &'static [u8], length: usize, start: usize) -> Token {
+    Token {kind: kind, val: val, length: length, start: start}
   }
 
   pub fn keyword(&mut self) -> TokenKind {
@@ -383,7 +320,7 @@ impl Lexer {
       _ => &self.input[previous_index..self.index]
     };
 
-    Token::new(tokind, value, self.index - previous_index)
+    Token::new(tokind, value, self.index - previous_index, previous_index)
   }
 }
 

@@ -286,7 +286,7 @@ impl Parser {
   }
 
   fn bump(&mut self) {
-    self.line_index += self.first().length;
+    self.line_index = self.second().start;
     self.index += 1;
   }
 
@@ -667,6 +667,10 @@ impl Parser {
 
   fn parse_scope(&mut self, before_scope: bool, in_loop: bool) -> AstTree {
     let mut nodes = vec![];
+    if self.first().kind != OpenBrace {
+      eprintln!("{} expected '{{'. got '{}'", self.get_debug_line(), self.first().kind);
+      panic!()
+    }
     self.bump(); // eat '{'
     while !self.is_eoi() && self.first().kind != CloseBrace {
       let n = self.advance(before_scope, in_loop);

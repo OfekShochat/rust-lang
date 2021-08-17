@@ -77,6 +77,13 @@ mod parser_tests {
       let d = lexer::lex("struct poop {i32 a, i32 b}");
       parser::parse(d, "f");
     }
+
+    #[test]
+    #[should_panic]
+    fn function_dec_without_openbrace() {
+      let d = lexer::lex("i32 main(i32 a, i32 b) return a+b;}");
+      parser::parse(d, "g");
+    }
   }
 
   mod statements {
