@@ -60,29 +60,36 @@ mod parser_tests {
     }
 
     #[test]
+    #[should_panic]
+    fn non_declared_attribute() {
+      let d = lexer::lex("struct a {}; a.g;");
+      parser::parse(d, "d");
+    }
+
+    #[test]
     fn constant_variable() {
       let d = lexer::lex("const i32 a = 1 + 2;");
-      parser::parse(d, "d");
+      parser::parse(d, "e");
     }
 
     #[test]
     #[should_panic]
     fn constant_variable_assign() {
       let d = lexer::lex("const i32 a = 1 + 2; a = 1;");
-      parser::parse(d, "e");
+      parser::parse(d, "f");
     }
 
     #[test]
     fn struct_def() {
       let d = lexer::lex("struct poop {i32 a, i32 b}");
-      parser::parse(d, "f");
+      parser::parse(d, "g");
     }
 
     #[test]
     #[should_panic]
     fn function_dec_without_openbrace() {
       let d = lexer::lex("i32 main(i32 a, i32 b) return a+b;}");
-      parser::parse(d, "g");
+      parser::parse(d, "h");
     }
   }
 
