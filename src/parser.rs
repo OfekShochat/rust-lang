@@ -286,8 +286,10 @@ impl Parser {
   }
 
   fn bump(&mut self) {
-    self.line_index = self.second().start;
     self.index += 1;
+    if !self.is_eoi() {
+      self.line_index = self.first().start;
+    }
   }
 
   fn parse_params(&mut self, stop: TokenKind) -> Vec<Param> {
