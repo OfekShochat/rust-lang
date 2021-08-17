@@ -4,6 +4,7 @@ use crate::token_kinds::{BinOp::*, Literal::*, TokenKind::*};
 use crate::token_kinds::TokenKind;
 use std::fmt;
 use std::process::exit;
+use std::rc::Rc;
 use std::str::from_utf8;
 use std::collections::HashMap;
 
@@ -49,7 +50,7 @@ pub struct Keyword {
 }
 
 pub struct IfStatement {
-  expr: Vec<AstTree>,
+  expr: Rc<AstTree>,
   body: Vec<AstTree>
 }
 
@@ -58,13 +59,13 @@ pub struct StringLit {
 }
 
 pub struct IfElseStatement {
-  expr: Vec<AstTree>,
+  expr: Rc<AstTree>,
   ifbody: Vec<AstTree>,
   elsebody: Vec<AstTree>
 }
 
 pub struct SwitchCase {
-  expr: Vec<AstTree>,
+  expr: Rc<AstTree>,
   body: Vec<AstTree>
 }
 
@@ -74,7 +75,7 @@ pub struct ForLoop {
 }
 
 pub struct WhileLoop {
-  condition: Vec<AstTree>,
+  condition: Rc<AstTree>,
   body: Vec<AstTree>
 }
 
@@ -88,19 +89,19 @@ pub struct RawLLVM {
 }
 
 pub struct SwitchStatement {
-  expr: Vec<AstTree>,
+  expr: Rc<AstTree>,
   cases: Vec<AstTree>
 }
 
 pub struct VarSet {
   name: &'static [u8],
-  value: Vec<AstTree>
+  value: Rc<AstTree>
 }
 
 pub struct VarDec {
   pub typ: Types,
   pub name: &'static [u8],
-  val: Vec<AstTree>,
+  val: Rc<AstTree>,
   constant: bool
 }
 
@@ -403,7 +404,7 @@ impl Parser {
     self.bump(); // eat ident
     self.bump(); // eat '='
 
-    AstTree::AstVarSet(VarSet{name: n, value: vec![self.parse_expression(false, false)]})
+    AstTree::AstVarSet(VarSet{name: n, value: Rc::new(self.parse_expression(false, false))})
   }
 
   fn binary(&mut self, is_before_scope: bool) -> AstTree {
@@ -499,7 +500,7 @@ impl Parser {
     let val = self.parse_expression(false, false);
 
     self.scope.add(name, tokentype_to_type(t), constant, false);
-    AstTree::AstVarDec(VarDec {typ: tokentype_to_type(t), name: name, val: vec![val], constant: constant})
+    AstTree::AstVarDec(VarDec {typ: tokentype_to_type(t), name: name, val: Rc::new(val), constant: constant})
   }
 
   fn function_variable_dec(&mut self) -> AstTree {
@@ -523,9 +524,9 @@ impl Parser {
       self.scope.new_scope();
       self.bump();
       let elsebody = self.parse_scope(false, in_loop);
-      AstTree::AstIfElse(IfElseStatement{expr: vec![expr], ifbody: vec![body], elsebody: vec![elsebody]})
+      AstTree::AstIfElse(IfElseStatement{expr: Rc::new(expr), ifbody: vec![body], elsebody: vec![elsebody]})
     } else {
-      AstTree::AstIf(IfStatement{expr: vec![expr], body: vec![body]})
+      AstTree::AstIf(IfStatement{expr: Rc::new(expr), body: vec![body]})
     }
   }
 
@@ -547,7 +548,7 @@ impl Parser {
     let condition = self.parse_expression(false, true);
     self.index -= 1; // parse_expression is also eating '{'
     self.scope.new_scope();
-    AstTree::AstWhileLoop(WhileLoop {condition: vec![condition], body: vec![self.parse_scope(false, true)]})
+    AstTree::AstWhileLoop(WhileLoop {condition: Rc::new(condition), body: vec![self.parse_scope(false, true)]})
   }
 
   fn parse_switch_body(&mut self, in_function: bool, in_loop: bool) -> Vec<AstTree> {
@@ -563,7 +564,7 @@ impl Parser {
       self.bump(); // eat '=>'
       self.scope.new_scope();
       let body = self.parse_scope(in_function, in_loop);
-      nodes.push(AstTree::AstCase(SwitchCase {expr: vec![case], body: vec![body]}));
+      nodes.push(AstTree::AstCase(SwitchCase {expr: Rc::new(case), body: vec![body]}));
       if self.first().kind == Comma {
         self.bump()
       } else if self.first().kind != CloseBrace {
@@ -581,7 +582,7 @@ impl Parser {
 
   fn switch_statement(&mut self, in_function: bool, in_loop: bool) -> AstTree {
     let expr = self.parse_expression(true, true);
-    AstTree::AstSwitch(SwitchStatement {expr: vec![expr], cases: self.parse_switch_body(in_function, in_loop)})
+    AstTree::AstSwitch(SwitchStatement {expr: Rc::new(expr), cases: self.parse_switch_body(in_function, in_loop)})
   }
 
   fn parse_struct_params(&mut self) -> Vec<Param> {

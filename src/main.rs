@@ -25,8 +25,11 @@ fn print_binop(e: BinExpresion, depth: i8) {
 
 fn main() {
   let now = Instant::now();
-  let d = lexer::lex("match 324 {4 => {},\n 5 => {},\n 7 => {continue\n}}");
-  let p = parser::parse(d, "./src/tests.rs");
+  let d = lexer::lex("i32 main() {
+    i32 a = 0;
+    a = 1;
+  }");
+  let p = parser::parse(d, "./file.test");
   let elapsed = now.elapsed();
   for i in p {
     if let AstTree::AstFuncDec(i) = i {
