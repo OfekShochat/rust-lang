@@ -356,7 +356,7 @@ impl Parser {
             from_utf8(self.first().val).unwrap(),
             from_utf8(self.second().val).unwrap()
           );
-          panic!();
+          panic!("0");
         }
       }
       self.bump()
@@ -372,7 +372,7 @@ impl Parser {
         self.get_debug_line(),
         self.first().kind
       );
-      panic!()
+      panic!("1")
     }
     self.parse_params(CloseParen)
   }
@@ -393,7 +393,7 @@ impl Parser {
         self.get_debug_line(),
         from_utf8(recall_name).unwrap()
       );
-      panic!()
+      panic!("2")
     }
     if self.first().kind != OpenParen {
       if self.scope.get(recall_name).unwrap().function {
@@ -422,7 +422,7 @@ impl Parser {
         "{} EOI encountered before end_of_expression indicator (;, \\n).",
         self.get_debug_line()
       );
-      panic!()
+      panic!("3")
     }
     if self.first().kind == NewLine
       || self.first().kind == Semi
@@ -447,13 +447,12 @@ impl Parser {
       self.bump(); // eat op
 
       if self.is_eoi() || self.first().kind == NewLine || self.first().kind == Semi {
-        // they forgot a end_of_expression indicator
         eprintln!(
           "{} expected an identifier or a number. Instead got {}.",
           self.get_debug_line(),
           self.first().kind
         );
-        panic!()
+        panic!("4")
       }
 
       let mut rhs = self.parse_expression(true, is_before_scope);
@@ -481,7 +480,7 @@ impl Parser {
         self.get_debug_line(),
         from_utf8(n).unwrap()
       );
-      panic!()
+      panic!("5")
     }
     self.bump(); // eat ident
     self.bump(); // eat '='
@@ -510,11 +509,11 @@ impl Parser {
         self.get_debug_line(),
         from_utf8(name).unwrap()
       );
-      panic!()
+      panic!("6")
     }
     if !self.scope.check_attribute(name, attribute) {
       eprintln!("{} {} doesn't have attribute {}.", self.get_debug_line(), from_utf8(name).unwrap(), from_utf8(attribute).unwrap());
-      panic!()
+      panic!("7")
     }
     self.index -= 1; // function_variable_recall needs to see the name of the ident
     AstTree::AttributeRecall(GetAttribute {name: name, attribute: Rc::new(self.function_variable_recall())})
@@ -523,7 +522,8 @@ impl Parser {
   fn parse_expression(&mut self, in_binary: bool, is_before_scope: bool) -> AstTree {
     match self.first().kind {
       Ident => {
-        if self.second().kind == Dot {
+        // println!("{}", self.index + 2 < self.input.len());
+        if self.index + 1 < self.input.len() && self.second().kind == Dot {
           self.ident_attribute()
         } else if in_binary {
           self.function_variable_recall()
@@ -565,7 +565,7 @@ impl Parser {
           self.get_debug_line(),
           self.first().kind
         );
-        panic!()
+        panic!("8")
       }
     }
   }
@@ -580,14 +580,14 @@ impl Parser {
         from_utf8(name).unwrap(),
         self.second().kind
       );
-      panic!()
+      panic!("9")
     }
     if self.second().keyword() != Fail {
       eprintln!(
         "{} You should not use the language keywords for function names",
         self.get_debug_line()
       );
-      panic!()
+      panic!("10")
     }
     self.bump();
     self.bump();
@@ -628,7 +628,7 @@ impl Parser {
         "{} don't use 'main' as a variable name. it is the entrypoint to the program.",
         self.get_debug_line()
       );
-      panic!()
+      panic!("11")
     }
 
     if self.first().kind != Ident {
@@ -638,7 +638,7 @@ impl Parser {
         from_utf8(name).unwrap(),
         self.second().kind
       );
-      panic!()
+      panic!("12")
     }
     self.bump(); // eat name
     self.bump(); // eat '='
@@ -661,7 +661,7 @@ impl Parser {
       self.parse_var(false)
     } else {
       eprintln!("{} unexpected {} was encountered after identifier declaration (expected ';', '\\n', '=' or '(').", self.get_debug_line(), self.input[self.index + 2].kind);
-      panic!()
+      panic!("13")
     }
   }
 
@@ -728,7 +728,7 @@ impl Parser {
           self.get_debug_line(),
           self.first().kind
         );
-        panic!()
+        panic!("14")
       }
 
       self.bump(); // eat '=>'
@@ -746,7 +746,7 @@ impl Parser {
           self.get_debug_line(),
           self.first().kind
         );
-        panic!()
+        panic!("15")
       }
     }
     if self.is_eoi() {
@@ -754,7 +754,7 @@ impl Parser {
         "{} EOI was encountered before scope was closed.",
         self.get_debug_line()
       );
-      panic!()
+      panic!("16")
     }
     self.bump(); // eat '}'
     nodes
@@ -775,7 +775,7 @@ impl Parser {
         self.get_debug_line(),
         self.first().kind
       );
-      panic!()
+      panic!("17")
     }
     self.parse_params(CloseBrace)
   }
@@ -787,7 +787,7 @@ impl Parser {
         "{} You should not use the language keywords for struct names.",
         self.get_debug_line()
       );
-      panic!()
+      panic!("18")
     }
     self.bump();
     self.scope.add(name, Types::StructType, true, false);
@@ -806,7 +806,7 @@ impl Parser {
           self.parse_expression(false, false)
         } else {
           eprintln!("return without a scope to return from");
-          panic!()
+          panic!("19")
         }
       }
       While => {
@@ -836,7 +836,7 @@ impl Parser {
             self.get_debug_line(),
             self.first().keyword()
           );
-          panic!()
+          panic!("20")
         }
         self.bump();
         AstTree::AstKeyword(Keyword { kind: k })
@@ -855,7 +855,7 @@ impl Parser {
       }
       _ => {
         eprintln!("this should never happen.");
-        panic!()
+        panic!("21")
       }
     }
   }
@@ -868,7 +868,7 @@ impl Parser {
         self.get_debug_line(),
         self.first().kind
       );
-      panic!()
+      panic!("22")
     }
     self.bump(); // eat '{'
     while !self.is_eoi() && self.first().kind != CloseBrace {
@@ -882,7 +882,7 @@ impl Parser {
         "{} EOI was encountered before scope was closed.",
         self.get_debug_line()
       );
-      panic!()
+      panic!("23")
     }
     self.bump(); // eat '}'
     self.scope.destruct(); // destruct the scope
@@ -906,7 +906,7 @@ impl Parser {
     match self.first().kind {
       _ if is_type(self.first().keyword()) => Some(self.function_variable_dec()),
       _ if self.first().keyword() != Fail => Some(self.keyword_expr(in_function, in_loop)),
-      _ if self.first().kind == Ident && self.second().kind == Eq => Some(self.assignment()),
+      _ if self.first().kind == Ident && self.index + 1 < self.input.len() && self.second().kind == Eq => Some(self.assignment()),
       NewLine => {
         self.bump_line();
         self.bump();
@@ -931,7 +931,7 @@ impl Parser {
           self.get_debug_line(),
           self.first().kind
         );
-        panic!()
+        panic!("25")
       }
     }
   }
