@@ -4,7 +4,6 @@ use crate::token_kinds::TokenKind;
 use crate::token_kinds::{BinOp::*, Literal::*, TokenKind::*};
 use std::collections::HashMap;
 use std::fmt;
-use std::process::exit;
 use std::rc::Rc;
 use std::str::from_utf8;
 
@@ -251,7 +250,7 @@ fn tokentype_to_type(kind: TokenKind) -> Types {
     I32Type => Types::Int32,
     I64Type => Types::Int64,
     F32Type => Types::F32,
-    _ => exit(11),
+    _ => panic!("11"),
   }
 }
 
@@ -259,7 +258,7 @@ fn litkind_to_type(kind: TokenKind) -> Types {
   match kind {
     Lit(FloatLiteral) => Types::F32,
     Lit(IntLiteral) => Types::Int32,
-    _ => exit(12),
+    _ => panic!("12"),
   }
 }
 
