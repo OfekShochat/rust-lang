@@ -4,5 +4,8 @@ version = "0.0.0"
 authors = ["Ofek Shochat"]
 license = "poop"
 
+[dependencies]
+llvm-sys = "*"
+
 [profile.release]
 lto = true

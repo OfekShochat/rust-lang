@@ -127,7 +127,7 @@ pub struct VarCall {
 
 pub struct FuncCall {
   pub name: &'static [u8],
-  args: Vec<AstTree>,
+  pub args: Vec<AstTree>,
 }
 
 pub struct BinExpresion {
@@ -238,14 +238,14 @@ impl Scope {
 
 pub struct Param {
   pub name: &'static [u8],
-  t: TokenKind,
+  pub t: TokenKind,
 }
 
 fn is_type(kind: TokenKind) -> bool {
   I32Type == kind || I64Type == kind || F32Type == kind
 }
 
-fn tokentype_to_type(kind: TokenKind) -> Types {
+pub fn tokentype_to_type(kind: TokenKind) -> Types {
   match kind {
     I32Type => Types::Int32,
     I64Type => Types::Int64,
