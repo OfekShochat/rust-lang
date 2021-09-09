@@ -479,7 +479,7 @@ impl Parser {
         self.get_debug_line(),
         from_utf8(n).unwrap()
       );
-      panic!()
+      panic!("5")
     }
     let info = self.scope.get(n);
     if info.unwrap().constant {
