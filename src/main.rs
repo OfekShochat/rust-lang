@@ -29,6 +29,7 @@ fn main() {
     "i32 main() {
     i32 a = 0;
     a = 1;
+    f = 0;
   }",
   );
   let p = parser::parse(d, "./file.test");

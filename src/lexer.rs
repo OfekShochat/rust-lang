@@ -1,7 +1,7 @@
-use crate::token_kinds::TokenKind::*;
-use crate::token_kinds::Literal::*;
 use crate::token_kinds::BinOp::*;
+use crate::token_kinds::Literal::*;
 use crate::token_kinds::TokenKind;
+use crate::token_kinds::TokenKind::*;
 use std::process::exit;
 use std::str;
 
@@ -16,10 +16,10 @@ pub struct Token {
 impl Token {
   pub fn new(kind: TokenKind, val: &'static [u8], length: usize, start: usize) -> Token {
     Token {
-      kind: kind,
-      val: val,
-      length: length,
-      start: start,
+      kind,
+      val,
+      length,
+      start,
     }
   }
 

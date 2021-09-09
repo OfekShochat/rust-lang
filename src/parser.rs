@@ -1,12 +1,12 @@
 use lexer::Token;
 
-use crate::token_kinds::{BinOp::*, Literal::*, TokenKind::*};
 use crate::token_kinds::TokenKind;
+use crate::token_kinds::{BinOp::*, Literal::*, TokenKind::*};
+use std::collections::HashMap;
 use std::fmt;
 use std::process::exit;
 use std::rc::Rc;
 use std::str::from_utf8;
-use std::collections::HashMap;
 
 pub enum AstTree {
   AstFuncDec(FunctionDec),
@@ -28,7 +28,7 @@ pub enum AstTree {
   AstString(StringLit),
   AstCase(SwitchCase),
   AstStructDef(StructDef),
-  AttributeRecall(GetAttribute)
+  AttributeRecall(GetAttribute),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -72,7 +72,7 @@ pub struct SwitchCase {
 
 pub struct GetAttribute {
   name: &'static [u8],
-  attribute: Rc<AstTree>
+  attribute: Rc<AstTree>,
 }
 
 pub struct ForLoop {
@@ -153,7 +153,7 @@ struct ScopeEntryInfo {
 struct Scope {
   subscope: Vec<Scope>,
   info: HashMap<&'static [u8], ScopeEntryInfo>,
-  attribute_info: HashMap<&'static [u8], Vec<&'static [u8]>>
+  attribute_info: HashMap<&'static [u8], Vec<&'static [u8]>>,
 }
 
 impl Scope {
@@ -195,7 +195,7 @@ impl Scope {
       self.subscope.push(Scope {
         subscope: vec![],
         info: HashMap::new(),
-        attribute_info: HashMap::new()
+        attribute_info: HashMap::new(),
       })
     } else {
       self.subscope[0].new_scope()
@@ -213,9 +213,9 @@ impl Scope {
       self.info.insert(
         name,
         ScopeEntryInfo {
-          function: function,
-          typ: typ,
-          constant: constant,
+          function,
+          typ,
+          constant,
         },
       );
       self.attribute_info.insert(name, vec![]);
@@ -302,12 +302,12 @@ impl Parser {
       scope: Scope {
         subscope: vec![],
         info: HashMap::new(),
-        attribute_info: HashMap::new()
+        attribute_info: HashMap::new(),
       },
       index: 0,
       line_num: 1,
       line_index: 1,
-      filename: filename,
+      filename,
     }
   }
 
@@ -424,9 +424,9 @@ impl Parser {
       );
       panic!("3")
     }
-    if self.first().kind == NewLine
-      || self.first().kind == Semi
-      || (is_before_scope && self.first().kind == OpenBrace)
+    if self.first().kind == NewLine ||
+      self.first().kind == Semi ||
+      (is_before_scope && self.first().kind == OpenBrace)
     {
       // there is only one number until end of the expression.
       return lhs;
@@ -469,10 +469,18 @@ impl Parser {
 
   fn assignment(&mut self) -> AstTree {
     let n = self.first().val;
-    self.scope.is_in_scope(n); // TODO(ghostway):
-                               // Should ensure that the type of the expression is correct.
-                               // That can be achieved by returning the type of the expression
-                               // from `self.parse_expression()`.
+    // TODO(ghostway):
+    // Should ensure that the type of the expression is correct.
+    // That can be achieved by returning the type of the expression
+    // from `self.parse_expression()`.
+    if !self.scope.is_in_scope(n) {
+      eprintln!(
+        "{} {} is not yet defined.",
+        self.get_debug_line(),
+        from_utf8(n).unwrap()
+      );
+      panic!()
+    }
     let info = self.scope.get(n);
     if info.unwrap().constant {
       eprintln!(
@@ -512,11 +520,19 @@ impl Parser {
       panic!("6")
     }
     if !self.scope.check_attribute(name, attribute) {
-      eprintln!("{} {} doesn't have attribute {}.", self.get_debug_line(), from_utf8(name).unwrap(), from_utf8(attribute).unwrap());
+      eprintln!(
+        "{} {} doesn't have attribute {}.",
+        self.get_debug_line(),
+        from_utf8(name).unwrap(),
+        from_utf8(attribute).unwrap()
+      );
       panic!("7")
     }
     self.index -= 1; // function_variable_recall needs to see the name of the ident
-    AstTree::AttributeRecall(GetAttribute {name: name, attribute: Rc::new(self.function_variable_recall())})
+    AstTree::AttributeRecall(GetAttribute {
+      name,
+      attribute: Rc::new(self.function_variable_recall()),
+    })
   }
 
   fn parse_expression(&mut self, in_binary: bool, is_before_scope: bool) -> AstTree {
@@ -611,7 +627,7 @@ impl Parser {
     self.scope.add(name, tokentype_to_type(t), true, true); // recursion
     let body = self.parse_scope(true, false);
     AstTree::AstFuncDec(FunctionDec {
-      name: name,
+      name,
       args: parameters,
       body: Rc::new(body),
       returns: tokentype_to_type(t),
@@ -648,9 +664,9 @@ impl Parser {
     self.scope.add(name, tokentype_to_type(t), constant, false);
     AstTree::AstVarDec(VarDec {
       typ: tokentype_to_type(t),
-      name: name,
+      name,
       val: Rc::new(val),
-      constant: constant,
+      constant,
     })
   }
 
@@ -793,7 +809,7 @@ impl Parser {
     self.scope.add(name, Types::StructType, true, false);
     AstTree::AstStructDef(StructDef {
       params: self.parse_struct_params(),
-      name: name,
+      name,
     })
   }
 
@@ -906,7 +922,12 @@ impl Parser {
     match self.first().kind {
       _ if is_type(self.first().keyword()) => Some(self.function_variable_dec()),
       _ if self.first().keyword() != Fail => Some(self.keyword_expr(in_function, in_loop)),
-      _ if self.first().kind == Ident && self.index + 1 < self.input.len() && self.second().kind == Eq => Some(self.assignment()),
+      _ if self.first().kind == Ident &&
+        self.index + 1 < self.input.len() &&
+        self.second().kind == Eq =>
+      {
+        Some(self.assignment())
+      }
       NewLine => {
         self.bump_line();
         self.bump();
