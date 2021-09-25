@@ -42,6 +42,7 @@ impl Token {
       "i32" => I32Type,
       "i64" => I64Type,
       "f32" => F32Type,
+      "void" => VoidType,
       _ => Fail,
     }
   }

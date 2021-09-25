@@ -31,11 +31,9 @@ fn main() {
   let now = Instant::now();
   llvm_backend::initialise_llvm();
   let d = lexer::lex(
-    "i32 main(i32 a, f32 a) {
-    i32 a = 0;
-    a = 1;
-    i32 f = 0;
-  }",
+"void main(i32 a, f32 a) {
+  
+}",
   );
   let p = parser::parse(d, "./file.test");
   let elapsed = now.elapsed();

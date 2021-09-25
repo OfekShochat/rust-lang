@@ -35,6 +35,7 @@ pub enum Types {
   Int64,
   Int32,
   F32,
+  Void,
   StructType,
   Fail,
 }
@@ -242,7 +243,7 @@ pub struct Param {
 }
 
 fn is_type(kind: TokenKind) -> bool {
-  I32Type == kind || I64Type == kind || F32Type == kind
+  I32Type == kind || I64Type == kind || F32Type == kind || VoidType == kind
 }
 
 pub fn tokentype_to_type(kind: TokenKind) -> Types {
@@ -250,6 +251,7 @@ pub fn tokentype_to_type(kind: TokenKind) -> Types {
     I32Type => Types::Int32,
     I64Type => Types::Int64,
     F32Type => Types::F32,
+    VoidType => Types::Void,
     _ => panic!("11"),
   }
 }
